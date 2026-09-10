@@ -1,0 +1,1 @@
+Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, learned to use git and commits.
