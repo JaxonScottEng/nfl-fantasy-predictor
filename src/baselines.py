@@ -31,8 +31,3 @@ if __name__ == "__main__":
     print(f"Baseline (last-4-game avg) MAE:  {mae:.3f}")
     print(f"Baseline (last-4-game avg) RMSE: {rmse:.3f}")
     # add temporarily at the bottom of baselines.py, before/after the existing prints
-    
-check = df[df["player_display_name"] == "Steve Smith"][
-    ["season", "week", "fantasy_points_ppr", "baseline_last4"]
-]
-print(check.head(10))
