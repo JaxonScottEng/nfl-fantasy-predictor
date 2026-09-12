@@ -27,10 +27,6 @@ def add_rolling_player_features(df, windows=None):
                   .transform(lambda x: x.shift(1).rolling(w, min_periods=1).mean())
             )
 
-    # Efficiency ratios computed FROM the rolled (lagged) values,
-    # not from raw same-week stats -- otherwise this reintroduces leakage.
-    # Use np.nan (not pd.NA) and explicit float cast to avoid the column
-    # silently becoming 'object' dtype, which XGBoost rejects.
     for w in windows:
         df[f"yards_per_target_roll{w}"] = (
             df[f"receiving_yards_roll{w}"] / df[f"targets_roll{w}"].replace(0, np.nan)

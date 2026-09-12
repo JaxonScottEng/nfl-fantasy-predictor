@@ -26,7 +26,7 @@ Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, l
   current codes before joining. Confirmed 0 nulls after fix.
 - Remaining nulls: 132 rows in def_points_allowed_roll4, all week 1 (expected
   cold-start — no prior game to roll from)
-  
+
   ## Phase 4 — First Model
 - XGBoost, per-fold retraining, walk-forward over 2023 regular season (weeks 1-18, playoffs excluded)
 - Baseline (last-4 avg): MAE 4.677, RMSE 6.579
@@ -36,3 +36,15 @@ Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, l
   division), rejected by XGBoost. Fixed with np.nan + explicit float cast.
 - This is the CORE MILESTONE result — first honest model-beats-baseline comparison.
   Next: error analysis (Phase 5) before further tuning/features.
+
+  ## Phase 5 — Iteration 1: Segmented Model
+- Error analysis found model beats baseline by 11.1% MAE on high-volume players
+  (baseline_pred >= 12, n=530) but is 1.7% WORSE than baseline on low-volume
+  players (n=1899) -- aggregate 2.9% masked this split
+- Built hybrid: use model prediction if baseline_pred >= 12, else fall back to baseline
+- Result: MAE 4.677 (baseline) -> 4.543 (model) -> 4.492 (hybrid); 3.9% improvement
+- Caveat: RMSE slightly worse for hybrid (6.360 vs model's 6.263) -- baseline
+  fallback occasionally misses big on a breakout low-volume player. MAE improves,
+  variance of large misses does not. Report both, don't cherry-pick MAE alone.
+- Feature importances unchanged: baseline_last4 + targets_roll5 + receptions_roll5
+  = ~63% of model's decisions -- usage dominates, consistent with domain expectation
