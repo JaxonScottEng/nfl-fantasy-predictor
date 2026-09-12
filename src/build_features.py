@@ -3,9 +3,11 @@ import pandas as pd
 from features_player import build_player_features
 from features_opponent import build_opponent_defense_features
 from features_context import load_schedule_context, normalize_team_codes
+from baselines import add_rolling_baseline
 
 def build_full_feature_table():
     player = build_player_features()
+    player = add_rolling_baseline(player, window=4)   # adds baseline_last4 onto the same rows
     defense = build_opponent_defense_features()
     sched = load_schedule_context()
 

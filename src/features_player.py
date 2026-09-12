@@ -4,6 +4,7 @@ Player usage/efficiency features — all rolling, all lagged.
 Lag is applied the same way as the Phase 1 baseline: shift(1) before
 rolling, grouped by player_id, so the current week is never included.
 """
+import numpy as np
 import pandas as pd
 import config
 from data_load import load_weekly
@@ -28,10 +29,12 @@ def add_rolling_player_features(df, windows=None):
 
     # Efficiency ratios computed FROM the rolled (lagged) values,
     # not from raw same-week stats -- otherwise this reintroduces leakage.
+    # Use np.nan (not pd.NA) and explicit float cast to avoid the column
+    # silently becoming 'object' dtype, which XGBoost rejects.
     for w in windows:
         df[f"yards_per_target_roll{w}"] = (
-            df[f"receiving_yards_roll{w}"] / df[f"targets_roll{w}"].replace(0, pd.NA)
-        )
+            df[f"receiving_yards_roll{w}"] / df[f"targets_roll{w}"].replace(0, np.nan)
+        ).astype(float)
 
     return df
 
@@ -47,4 +50,5 @@ if __name__ == "__main__":
     df = build_player_features()
     print("shape:", df.shape)
     print(df.columns.tolist())
+    print(df[["yards_per_target_roll3", "yards_per_target_roll4", "yards_per_target_roll5"]].dtypes)
     print(df[df["player_display_name"] == "Steve Smith"].head(8))
