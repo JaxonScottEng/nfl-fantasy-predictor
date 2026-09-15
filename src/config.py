@@ -1,6 +1,9 @@
 # config.py — single source of truth for tunable values
 
-SEASONS = list(range(2016, 2025))   # 2016–2024, all completed seasons
+SEASONS = list(range(2016, 2027))   # 2016–2026; 2026 is IN PROGRESS (partial)
+# Seasons after TEST_SEASON are pulled so the GUI can predict the next unplayed
+# week. They never reach training/validation: walk_forward_folds trains on
+# season < VALIDATION_SEASON and tests on VALIDATION_SEASON only.
 ACTIVE_POSITIONS = ["WR", "RB"]   # one separate model per position, never pooled
 TARGET = "fantasy_points_ppr"
 ROLLING_WINDOWS = [3, 4, 5]          # last-N-game windows for features/baseline

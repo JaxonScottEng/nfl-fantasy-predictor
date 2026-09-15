@@ -115,3 +115,59 @@ Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, l
   anchored: it matches "<POS> Baseline (last-4 avg) MAE:" per position. The
   earlier unanchored regex matched WR only by luck of print order.
 
+
+## Phase 7 — Streamlit GUI
+- Local GUI so results are viewable without editing/re-running scripts by hand.
+  Entry point `app.py` (thin: page config, sidebar, view dispatch), package `gui/`.
+- Structured as a registry for extension: `app.py` holds `VIEWS = {name: render_fn}`,
+  each view is its own file in `gui/views/` exposing `render(position, week, data)`.
+  Adding a view = new file + one line in VIEWS.
+- `gui/data_access.py` is the ONLY module that touches the pipeline; views never
+  import train.py/build_features.py/upcoming.py directly. Positions come from
+  `config.ACTIVE_POSITIONS`, so new positions appear with no GUI change.
+- `gui/prediction_ranges.py` is a method registry: `get_prediction_range(row,
+  method="mae_approx")` dispatches through `_METHODS`. Views build their method
+  selector from `available_methods()`, so a new method appears in the UI with
+  zero view edits. Only `mae_approx` exists now (point prediction +/- the hybrid's
+  historical MAE for that position/volume segment), labeled in-app as an
+  approximation with no coverage guarantee.
+- `src/upcoming.py` (new, in src/ not gui/ -- it's pipeline logic, reusable
+  outside the GUI and covered by the regression hook): predictions for a week
+  that has NOT been played.
+
+### How upcoming-week prediction stays leakage-free
+- Append placeholder rows for the target week carrying only identity/schedule
+  fields, with NaN for every raw stat and the target. Then run the EXISTING
+  feature builders. Because they all lag via `.shift(1).rolling(...)` grouped by
+  player_id, the placeholder row's features come strictly from earlier games, and
+  its own NaN stats never feed its own features. Zero duplicated rolling logic.
+- Same placeholder trick on the opponent-defense table so def_points_allowed_roll*
+  is a properly lagged value rather than a missing join.
+- The live model trains on all completed rows strictly before the target week --
+  the same rule walk_forward_folds enforces, but with more history than the 2023
+  validation model. So the validation MAE is an approximate guide to live error,
+  not an exact one. Noted in the UI caption.
+
+### Config change
+- `config.SEASONS` extended 2016-2024 -> 2016-2026 so there IS an upcoming week
+  (2026 wk1 complete; wk2 is next and already has Vegas lines).
+- VERIFIED this does not move the locked-in numbers: walk_forward_folds trains on
+  `season < VALIDATION_SEASON` and tests on VALIDATION_SEASON, so 2025-26 rows are
+  never reached. All six MAE/RMSE values identical after the re-pull.
+- Betting lines only exist for the near week (~88% of later unplayed games have
+  null spread/total), which is fine -- only the next week is ever predicted.
+
+### New gotchas
+- `data_load.CACHE_PATH` is RELATIVE ("data/raw/..."). Running any pipeline entry
+  point from a different cwd silently reads/writes a DIFFERENT cache. This bit
+  during this phase: a pull run with cwd=src/ created `src/data/raw/weekly_stats.parquet`
+  while the root cache stayed stale, and a verification run silently checked the
+  OLD data. `gui/data_access.py` now does `os.chdir(PROJECT_ROOT)` at import to
+  make the GUI immune. Always run pipeline scripts from the project root.
+- `requirements.txt` was UTF-16 encoded (PowerShell redirect artifact); regenerated
+  as UTF-8. Use `-Encoding utf8` if regenerating from PowerShell.
+- Streamlit 1.64 deprecates `use_container_width`; use `width='stretch'`.
+- Early-season predictions lean on last season's games (rolling windows span the
+  season boundary by design, since features group by player_id only). Consistent
+  with the existing baseline convention -- not a bug, but worth knowing when a
+  week-2 projection looks driven by last year's form.
