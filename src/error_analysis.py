@@ -8,8 +8,6 @@ detail = pd.read_csv("data/processed/predictions_detail.csv")
 # since it's just their own recent scoring level -- a clean, already-available
 # grouping variable, no extra computation needed.
 THRESHOLD = 12.0
-high_volume = detail[detail["baseline_pred"] >= THRESHOLD]
-low_volume = detail[detail["baseline_pred"] < THRESHOLD]
 
 def summarize(name, group):
     model_mae = group["model_error"].mean()
@@ -20,5 +18,10 @@ def summarize(name, group):
     print(f"  Model MAE:    {model_mae:.3f}")
     print(f"  Improvement:  {improvement:.1f}%\n")
 
-summarize("HIGH-VOLUME (baseline_pred >= 12)", high_volume)
-summarize("LOW-VOLUME  (baseline_pred < 12)", low_volume)
+# Split per position -- positions have different scoring distributions, so
+# pooling them would average away the segment effect this analysis exists to find.
+for position in sorted(detail["position"].unique()):
+    pos_detail = detail[detail["position"] == position]
+    print(f"########## {position} ##########")
+    summarize("HIGH-VOLUME (baseline_pred >= 12)", pos_detail[pos_detail["baseline_pred"] >= THRESHOLD])
+    summarize("LOW-VOLUME  (baseline_pred < 12)", pos_detail[pos_detail["baseline_pred"] < THRESHOLD])

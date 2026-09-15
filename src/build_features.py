@@ -16,10 +16,12 @@ def build_full_feature_table():
     player = normalize_team_codes(player, ["team", "opponent_team"])
     defense = normalize_team_codes(defense, ["defense_team"])
 
+    # Position is part of the join key: each player row gets the defense's
+    # points-allowed history against that player's own position.
     df = player.merge(
         defense,
-        left_on=["opponent_team", "season", "week"],
-        right_on=["defense_team", "season", "week"],
+        left_on=["opponent_team", "position", "season", "week"],
+        right_on=["defense_team", "position", "season", "week"],
         how="left"
     )
 

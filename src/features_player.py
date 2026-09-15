@@ -13,7 +13,8 @@ from data_load import load_weekly
 # Verified against the real column list from Phase 0 — adjust here if
 # nflreadpy's schema changes.
 USAGE_COLS = ["targets", "receptions", "receiving_air_yards", "carries"]
-PROD_COLS = ["receiving_yards", "rushing_yards", "receiving_tds", "rushing_tds"]
+PROD_COLS = ["receiving_yards", "rushing_yards", "receiving_tds", "rushing_tds",
+             "rushing_first_downs"]
 
 def add_rolling_player_features(df, windows=None):
     windows = windows or config.ROLLING_WINDOWS
@@ -30,6 +31,18 @@ def add_rolling_player_features(df, windows=None):
     for w in windows:
         df[f"yards_per_target_roll{w}"] = (
             df[f"receiving_yards_roll{w}"] / df[f"targets_roll{w}"].replace(0, np.nan)
+        ).astype(float)
+
+        # RB-oriented. Carries are the dominant RB usage signal (RB mean 7.7
+        # carries/game vs WR 0.18), so RBs need a rushing-side efficiency ratio
+        # and a combined-opportunity count the way WRs need yards-per-target.
+        # Built from the already-lagged rolling columns, same as above.
+        df[f"yards_per_carry_roll{w}"] = (
+            df[f"rushing_yards_roll{w}"] / df[f"carries_roll{w}"].replace(0, np.nan)
+        ).astype(float)
+
+        df[f"touches_roll{w}"] = (
+            df[f"carries_roll{w}"] + df[f"receptions_roll{w}"]
         ).astype(float)
 
     return df

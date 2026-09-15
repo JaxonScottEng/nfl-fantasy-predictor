@@ -48,3 +48,70 @@ Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, l
   variance of large misses does not. Report both, don't cherry-pick MAE alone.
 - Feature importances unchanged: baseline_last4 + targets_roll5 + receptions_roll5
   = ~63% of model's decisions -- usage dominates, consistent with domain expectation
+  ## Phase 5 — Iteration 2 (negative result)
+- Hypothesis: a games_played_this_season feature would help the model recognize
+  thin-sample players and rely less on noisy rolling stats for them.
+- Result: no meaningful change (Model MAE 4.543->4.545, Hybrid 4.492->4.491).
+  Feature did not appear in top 15 importances.
+- Conclusion: low-volume segment's error is not a signal-representation problem;
+  appears to be a genuine data-sparsity/variance floor for these players.
+  Reverted the feature -- kept codebase clean.
+- Current best result: Hybrid MAE 4.491-4.492 (~4% improvement over baseline),
+  concentrated entirely in high-volume players (~11% there vs ~-1.7% low-volume).
+
+## Phase 6 — RB Added (second position)
+- config.ACTIVE_POSITIONS is now ["WR", "RB"]; one SEPARATE model per position,
+  never pooled (different usage semantics and scoring distributions).
+- ARCHITECTURE FINDING: the "extend via config, not restructuring" assumption in
+  CLAUDE.md did NOT fully hold. `features_opponent.py` summed fantasy points
+  allowed across ALL of ACTIVE_POSITIONS into one number, so adding RB to config
+  alone would have silently redefined WR's def_points_allowed_roll* features as
+  "points allowed to WR **and** RB combined" -- changing WR's locked-in results.
+  Fixed by grouping defense features per (defense_team, position) and adding
+  `position` to the build_features join key. A defense soft against WRs is not
+  necessarily soft against RBs, so this is the correct modeling unit anyway.
+- New RB features (all built from already-lagged rolling columns, same pattern
+  as yards_per_target): touches_roll{3,4,5} (carries + receptions),
+  yards_per_carry_roll{3,4,5}, and rushing_first_downs_roll{3,4,5}.
+  Motivation: RB mean 7.74 carries/game vs WR 0.18 -- the existing carries/
+  rushing_* rollings capture volume but had no rushing-side efficiency ratio,
+  no combined-opportunity count, and no down-role signal.
+- Verified WR results are byte-identical after every step: MAE 4.677 / 4.543 /
+  4.492 and RMSE 6.579 / 6.263 / 6.360, same 18 folds, same 2429 rows.
+
+### RB results (2023 walk-forward, weeks 1-18, 18 folds, 1445 rows)
+- Baseline (last-4 avg)  MAE 4.543, RMSE 6.445
+- Model (XGBoost)        MAE 4.489, RMSE 6.112  (1.2% MAE improvement)
+- Hybrid (segmented)     MAE 4.390, RMSE 6.243  (3.4% MAE improvement)
+- Unlike WR, RB's RMSE improves for BOTH model and hybrid over baseline --
+  the hybrid's RMSE penalty seen in WR Phase 5 does not reproduce here.
+- Segment split mirrors WR's shape: high-volume (baseline_pred >= 12, n=348)
+  model beats baseline by 9.0%; low-volume (n=1097) model is 3.5% WORSE.
+  Same qualitative finding as WR, so the hybrid earns its place for RB too.
+- RB hybrid threshold INHERITS WR's 12.0 rather than being separately tuned.
+  Scanning for RB's best cutoff would be the post-hoc cherry-picking the WR
+  analysis deliberately avoided. Revisit only off a dedicated RB error analysis.
+
+### RB feature importances (final fold)
+- baseline_last4 0.346, touches_roll3 0.139, touches_roll5 0.089,
+  touches_roll4 0.042, rushing_yards_roll5 0.021, receiving_yards_roll5 0.021,
+  targets_roll4 0.019, targets_roll5 0.018, implied_total 0.016
+- The new `touches` feature is the #2/#3/#4 signal (~27% combined) -- clear
+  validation that RB needed a combined-opportunity feature WR did not.
+- Negative result worth recording: yards_per_carry_roll* and
+  rushing_first_downs_roll* did NOT crack the top 15. RB prediction is driven
+  by opportunity volume, not rushing efficiency -- consistent with the WR
+  finding that usage dominates. Kept them (cheap, and they're the honest
+  analogue set), but don't expect them to carry weight.
+
+### New gotchas
+- Expected nulls in the new RB features, both benign: 425 rows = a player's
+  first career game (cold start, same as baseline_last4), and 950 rows where
+  carries_roll* == 0 make yards_per_carry np.nan by design (pass-catching-only
+  backs). XGBoost handles NaN natively. Hand-verified touches == carries +
+  receptions on all 34,919 non-null rows (a naive all-rows equality check
+  returns False purely because NaN != NaN -- not a bug).
+- Regression hook (.claude/hooks/check_wr_regression.py) is now position-
+  anchored: it matches "<POS> Baseline (last-4 avg) MAE:" per position. The
+  earlier unanchored regex matched WR only by luck of print order.
+
