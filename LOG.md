@@ -293,3 +293,76 @@ expectations were updated. That is the intended behaviour for a change that move
 frozen numbers — the alarm fired every time, and the numbers stabilised at
 WR 7.286/6.760/6.760 and RB 6.155/5.785/5.838 (2023 top-40) once all four readers were
 filtered, which is itself evidence the four call sites were the complete set.
+
+
+## Phase 10 — Opportunity, snap share and expected points
+
+### What was added
+- `features_player.OPPORTUNITY_COLS` — target_share, air_yards_share, receiving_epa,
+  rushing_epa, receiving_first_downs, receiving_yards_after_catch. All were already
+  sitting unused in the cached parquet. Excluded on purpose: `wopr` (exactly
+  1.5*target_share + 0.7*air_yards_share, so the primitives carry it), `racr`
+  (explodes near zero air yards), `pacr` (99%+ null off QB).
+- `src/features_snap.py` — offensive snap share. load_snap_counts has only
+  `pfr_player_id`, so it bridges through load_rosters_weekly's pfr_id (name joins
+  are forbidden). Unmatched rows stay NaN, never 0 — 0 would assert "played no
+  snaps" when the truth is "unknown". Final null rate 12.6% WR / 14.3% RB.
+- `src/features_expected.py` — nflverse ffopportunity expected points. Joins 100%
+  on player_id. `season` arrives as String and `week` as float; both need casting.
+- `ROLLING_INPUT_COLS` consolidates USAGE+PROD+OPPORTUNITY so upcoming.py cannot
+  drift from the training pipeline's input list.
+- `build_features._merge_player_week` asserts row count is unchanged after each
+  join — a duplicated key on the right silently multiplies rows and would corrupt
+  every metric without raising.
+
+### PLAN DEVIATION: no same-week expected-points comparator
+The plan called for a `nflverse_exp` comparator using same-week
+`total_fantasy_points_exp`. Dropped: expected points for week W are derived from
+week W's plays, so that comparator would be an ORACLE with access to the outcome's
+own inputs, not a peer projection — and publishing it next to real projections
+would be misleading. Only lagged rolling values are produced, so the `_current`
+column and its guard assertion were never needed.
+
+### Results (top-40 pool, 2021-2025)
+
+| | before | after | vs field |
+|---|---|---|---|
+| WR model | 6.578 | **6.514** | 4.84-4.94 |
+| RB model | 6.168 | **6.073** | 5.06-5.20 |
+
+Gap narrowed from ~34%/21% to ~32%/17%. Also: WR mean_error -0.172 -> +0.010
+(systematic under-projection of top players essentially eliminated), RB Spearman
+0.363 -> 0.382, both CoV improved.
+
+**Expected points is the single strongest signal in the model.**
+`total_fantasy_points_exp_roll5` alone carries 40.8% of WR importance; the whole new
+block is 79.2% of WR and 66.0% of RB importance. It works because it measures what a
+player's opportunities were WORTH, which is far more stable than what he actually
+scored — touchdown luck is the biggest source of weekly noise.
+
+### IMPORTANT: single-season and multi-season disagreed in direction
+On 2023 alone WR got slightly WORSE (6.760 -> 6.806) while the 5-season average got
+better (6.578 -> 6.514). One season of 18 folds is too noisy to judge a change on.
+Always evaluate on the multi-season run; the hook's single-season numbers are a
+regression tripwire, not evidence.
+
+### THE HYBRID IS NOW OBSOLETE
+Its entire justification was that the model LOST to the baseline on low-volume
+players. After these features, the model wins in both segments:
+
+| low-volume segment | before | after |
+|---|---|---|
+| WR | -1.7% (worse) | **+4.0% better** |
+| RB | -3.5% (worse) | **+0.9% better** |
+
+On all rows the plain model now beats the hybrid (WR 4.384 vs 4.506), so the
+baseline fallback is pure drag. This also means Stage 4's hurdle model is no longer
+needed for the reason it was planned — the low-volume problem is already solved.
+
+### Gap found by the GUI test
+`upcoming.py` builds its own feature table and broke on the new columns
+(KeyError on offense_pct_roll3 etc). Fixed by giving `build_snap_features` and
+`build_expected_points_features` an `extra_keys` parameter that appends NaN
+placeholder rows — the same trick upcoming.py already used for player features, so
+an unplayed week gets a properly lagged value instead of a missing join. Caught only
+because the GUI is exercised via streamlit.testing AppTest; worth keeping that habit.

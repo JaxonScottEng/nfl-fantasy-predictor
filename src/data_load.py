@@ -24,6 +24,30 @@ def filter_regular_season(df):
     """
     return df[df["season_type"] == REGULAR_SEASON].copy()
 
+def cached_table(name, loader, force_refresh=False):
+    """
+    Cache any nflverse table to data/raw/<name>.parquet.
+
+    These feed build_full_feature_table(), which the evaluation harness and the
+    regression hook both run repeatedly -- without a local cache every run would
+    re-download. Converts Polars to pandas once, at this boundary.
+    """
+    path = f"data/raw/{name}.parquet"
+
+    if os.path.exists(path) and not force_refresh:
+        return pd.read_parquet(path)
+
+    print(f"Downloading {name} from nflverse...")
+    df = loader()
+    if hasattr(df, "to_pandas"):
+        df = df.to_pandas()
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    df.to_parquet(path)
+    print(f"Cached to {path}")
+    return df
+
+
 def load_weekly(seasons=None, force_refresh=False):
     seasons = seasons or config.SEASONS
 

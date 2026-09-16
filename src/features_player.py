@@ -16,11 +16,26 @@ USAGE_COLS = ["targets", "receptions", "receiving_air_yards", "carries"]
 PROD_COLS = ["receiving_yards", "rushing_yards", "receiving_tds", "rushing_tds",
              "rushing_first_downs"]
 
+# Team-context-normalized opportunity and efficiency. Raw target counts can't say
+# whether 6 targets was a big share of a low-volume offense or a small share of a
+# pass-heavy one; target_share and air_yards_share can. All are single-game values
+# (verified: target_share sums to 1.0 per team-week), so they are only safe because
+# they go through the same shift-then-roll treatment as everything else.
+# Deliberately excluded: `wopr` (exactly 1.5*target_share + 0.7*air_yards_share, so
+# the primitives carry it), `racr` (explodes as air yards approach zero) and `pacr`
+# (99%+ null off QB).
+OPPORTUNITY_COLS = ["target_share", "air_yards_share", "receiving_epa", "rushing_epa",
+                    "receiving_first_downs", "receiving_yards_after_catch"]
+
+# Every raw column that gets rolled. Single list so callers that rebuild this
+# pipeline (upcoming.py) cannot fall out of sync with it.
+ROLLING_INPUT_COLS = USAGE_COLS + PROD_COLS + OPPORTUNITY_COLS
+
 def add_rolling_player_features(df, windows=None):
     windows = windows or config.ROLLING_WINDOWS
     df = df.sort_values(["player_id", "season", "week"]).copy()
 
-    for col in USAGE_COLS + PROD_COLS:
+    for col in ROLLING_INPUT_COLS:
         for w in windows:
             new_col = f"{col}_roll{w}"
             df[new_col] = (
@@ -51,7 +66,7 @@ def build_player_features():
     raw = filter_regular_season(load_weekly())
     wr = raw[raw["position"].isin(config.ACTIVE_POSITIONS)].copy()
     keep = ["player_id", "player_display_name", "position", "season", "week",
-            "team", "opponent_team", config.TARGET] + USAGE_COLS + PROD_COLS
+            "team", "opponent_team", config.TARGET] + ROLLING_INPUT_COLS
     wr = wr[keep]
     return add_rolling_player_features(wr)
 

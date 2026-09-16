@@ -80,6 +80,29 @@ RB_FEATURE_COLS = [
     "baseline_last4",
 ]
 
+def _rolled(*cols):
+    return [f"{c}_roll{w}" for c in cols for w in config.ROLLING_WINDOWS]
+
+
+# Opportunity, snap-share and expected-production features, appended rather than
+# folded into the lists above so the original blocks stay diff-comparable.
+# rushing_epa is RB-only (70% null for WR); air_yards_share is WR-only (RB mean
+# 0.002 -- backs are not air-yards earners).
+WR_FEATURE_COLS = WR_FEATURE_COLS + _rolled(
+    "target_share", "air_yards_share", "receiving_epa",
+    "receiving_first_downs", "receiving_yards_after_catch",
+    "offense_pct",
+    "total_fantasy_points_exp", "rec_fantasy_points_exp",
+    "receptions_exp", "total_touchdown_exp",
+)
+
+RB_FEATURE_COLS = RB_FEATURE_COLS + _rolled(
+    "target_share", "rushing_epa", "receiving_epa", "receiving_first_downs",
+    "offense_pct",
+    "total_fantasy_points_exp", "rush_fantasy_points_exp",
+    "rec_fantasy_points_exp", "total_touchdown_exp",
+)
+
 FEATURE_COLS_BY_POSITION = {
     "WR": WR_FEATURE_COLS,
     "RB": RB_FEATURE_COLS,

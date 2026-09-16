@@ -26,6 +26,10 @@ to `config.ACTIVE_POSITIONS`, give it a feature list in `train.py`'s
 - `src/features_player.py` — lagged usage/efficiency rolling features
 - `src/features_opponent.py` — lagged opponent-defense rolling features
 - `src/features_context.py` — schedule/Vegas join, team-code normalization
+- `src/features_snap.py` — offensive snap share (bridges pfr_id→player_id via rosters)
+- `src/features_expected.py` — nflverse expected fantasy points; the single strongest
+  signal in the model (40% of WR importance). Lagged only — a same-week expected
+  value would be an oracle, not a projection
 - `src/build_features.py` — joins player + defense + context into one table
 - `src/train.py` — walk-forward training: baseline vs model vs hybrid
 - `src/registry.py` — generic id→function registry; the extension seam used by
@@ -75,18 +79,22 @@ another. See `src/pools.py`.
 
 | | WR MAE | RB MAE |
 |---|---|---|
-| Baseline (last-4 avg) | 7.286 | 6.155 |
-| Model (XGBoost) | 6.760 | 5.785 |
-| Hybrid (segmented) | 6.760 | 5.838 |
+| Baseline (last-4 avg) | 7.258 | 6.129 |
+| Model (XGBoost) | 6.806 | 5.746 |
+| Hybrid (segmented) | 6.821 | 5.784 |
 
 **Multi-season, 2021–2025, top-40 pool** (180 folds, 21,600 scored rows — the
 headline figure for any external claim):
 
 | | WR MAE | RB MAE |
 |---|---|---|
-| Baseline | 7.100 | 6.548 |
-| Model | 6.578 | 6.168 |
-| Hybrid | 6.550 | 6.196 |
+| Baseline | 7.047 | 6.464 |
+| Model | **6.514** | **6.073** |
+| Hybrid | 6.503 | 6.115 |
+
+Note the single-season and multi-season numbers disagree in direction for WR
+(2023 got slightly worse while the 5-season average improved). Judge changes on the
+multi-season run; one season of 18 folds is too noisy to conclude from.
 
 Run with `python src/evaluate.py 2021 2022 2023 2024 2025`.
 
@@ -94,8 +102,14 @@ Run with `python src/evaluate.py 2021 2022 2023 2024 2025`.
 
 Published best-in-class on the same pool convention: **WR 4.84–4.94, RB 5.06–5.20**
 (Fantasy Football Analytics, 11 seasons / 9 sources; FantasyPros recent). We are
-roughly **34% behind on WR and 21% behind on RB**. Do not describe this project as
+roughly **32% behind on WR and 17% behind on RB**. Do not describe this project as
 competitive with commercial projections until those gaps close.
+
+The hybrid is now obsolete. It existed because the model used to LOSE to the baseline
+on low-volume players; after the expected-points features landed, the model wins in
+both segments (WR low-volume +4.0%, RB +0.9%), so the baseline fallback only drags it
+down — on all rows the plain model beats the hybrid (WR 4.384 vs 4.506). Prefer
+`xgb_model`; the hybrid is kept only for continuity of comparison.
 
 Context for what is achievable: best-in-class projections explain only 3–23% of weekly
 variance, and WR MAE ~4.8–4.9 is near the practical floor. Chasing a much lower number

@@ -148,8 +148,8 @@ def metric_table(row_df, metric_ids=None, pool_only=True, **metric_kwargs):
 # reproduce train.py's locked-in numbers exactly, or it is not measuring the
 # same thing and no later comparison can be trusted.
 FIDELITY_TARGETS = {
-    ("WR", "baseline_last4"): 4.685, ("WR", "xgb_model"): 4.559, ("WR", "hybrid"): 4.502,
-    ("RB", "baseline_last4"): 4.551, ("RB", "xgb_model"): 4.496, ("RB", "hybrid"): 4.393,
+    ("WR", "baseline_last4"): 4.685, ("WR", "xgb_model"): 4.384, ("WR", "hybrid"): 4.506,
+    ("RB", "baseline_last4"): 4.551, ("RB", "xgb_model"): 4.349, ("RB", "hybrid"): 4.375,
 }
 
 

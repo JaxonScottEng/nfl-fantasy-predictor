@@ -21,8 +21,8 @@ import sys
 # Top-40 pool, 2023. Anchored per position and comparator so a change in
 # print order can never check one against another's expectations.
 EXPECTED_MAE = {
-    "WR": {"baseline_last4": 7.286, "xgb_model": 6.760, "hybrid": 6.760},
-    "RB": {"baseline_last4": 6.155, "xgb_model": 5.785, "hybrid": 5.838},
+    "WR": {"baseline_last4": 7.258, "xgb_model": 6.806, "hybrid": 6.821},
+    "RB": {"baseline_last4": 6.129, "xgb_model": 5.746, "hybrid": 5.784},
 }
 
 EXCLUDED_BASENAMES = {"LOG.md", "CLAUDE.md", "README.md"}

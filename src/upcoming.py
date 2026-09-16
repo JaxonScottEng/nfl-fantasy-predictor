@@ -22,8 +22,10 @@ import nflreadpy as nfl
 
 import config
 from data_load import load_weekly, filter_regular_season
-from features_player import add_rolling_player_features, USAGE_COLS, PROD_COLS
+from features_player import add_rolling_player_features, ROLLING_INPUT_COLS
 from features_opponent import build_opponent_defense_features
+from features_snap import build_snap_features
+from features_expected import build_expected_points_features
 from features_context import load_schedule_context, normalize_team_codes
 from baselines import add_rolling_baseline
 from train import FEATURE_COLS_BY_POSITION, HYBRID_THRESHOLD_BY_POSITION, DEFAULT_HYBRID_THRESHOLD
@@ -87,7 +89,7 @@ def _placeholder_player_rows(weekly, position, season, week, matchups):
     # Inner join drops players whose team is on bye this week.
     rows = rows.merge(matchups, on="team", how="inner")
 
-    for col in USAGE_COLS + PROD_COLS + [config.TARGET]:
+    for col in ROLLING_INPUT_COLS + [config.TARGET]:
         rows[col] = np.nan
 
     return rows
@@ -124,7 +126,7 @@ def build_upcoming_feature_table(position, season, week):
         return pd.DataFrame()
 
     keep = ["player_id", "player_display_name", "position", "season", "week",
-            "team", "opponent_team", config.TARGET] + USAGE_COLS + PROD_COLS
+            "team", "opponent_team", config.TARGET] + ROLLING_INPUT_COLS
     history = weekly[weekly["position"] == position][keep].copy()
     history = normalize_team_codes(history, ["team", "opponent_team"])
 
@@ -156,6 +158,18 @@ def build_upcoming_feature_table(position, season, week):
         left_on=["opponent_team", "position", "season", "week"],
         right_on=["defense_team", "position", "season", "week"],
         how="left",
+    )
+
+    # Snap share and expected points, built with this week's rows as placeholders
+    # so their rolling values are lagged exactly as in training.
+    keys = upcoming[["player_id", "season", "week"]]
+    upcoming = upcoming.merge(
+        build_snap_features(extra_keys=keys),
+        on=["player_id", "season", "week"], how="left",
+    )
+    upcoming = upcoming.merge(
+        build_expected_points_features(extra_keys=keys),
+        on=["player_id", "season", "week"], how="left",
     )
 
     # Schedule/Vegas context, same home/away unpivot as build_features.
