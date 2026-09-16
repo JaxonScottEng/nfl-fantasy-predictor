@@ -75,8 +75,12 @@ def get_week_predictions(position, week):
 @st.cache_data(show_spinner=False)
 def get_segment_mae(position):
     """
-    The hybrid model's REAL historical MAE for this position, split by volume
-    segment. Feeds the approximate prediction range. None if no predictions yet.
+    The model's REAL historical MAE for this position, split by volume segment.
+    Feeds the approximate prediction range. None if no predictions yet.
+
+    Still segmented by volume even though the hybrid is retired: error scales with
+    scoring level (roughly 6.9 MAE for high-volume WRs vs 3.7 for low), so a single
+    band would be far too wide at the bottom and too narrow at the top.
     """
     preds = load_predictions()
     if len(preds) == 0:
@@ -92,8 +96,8 @@ def get_segment_mae(position):
 
     return {
         "threshold": threshold,
-        "high": float(high["hybrid_error"].mean()) if len(high) else None,
-        "low": float(low["hybrid_error"].mean()) if len(low) else None,
+        "high": float(high["model_error"].mean()) if len(high) else None,
+        "low": float(low["model_error"].mean()) if len(low) else None,
         "n_high": len(high),
         "n_low": len(low),
     }

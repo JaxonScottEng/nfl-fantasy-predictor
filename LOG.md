@@ -366,3 +366,61 @@ needed for the reason it was planned — the low-volume problem is already solve
 placeholder rows — the same trick upcoming.py already used for player features, so
 an unplayed week gets a properly lagged value instead of a missing join. Caught only
 because the GUI is exercised via streamlit.testing AppTest; worth keeping that habit.
+
+
+## Phase 11 — Availability features (NEGATIVE RESULT, reverted) + hybrid retired
+
+### Hypothesis
+The model had no idea whether a player was injured, so injury-report status, practice
+participation, teammate absence and time-since-last-game should help — particularly on
+the top-40 pool, where a player who is ruled out would be projected highly and score 0.
+
+### Why the premise was wrong (verified, not assumed)
+**A player listed "Out" has no weekly stats row at all** — 996 of 996 "Out" player-weeks
+in 2023 have no row in load_player_stats. Inactive players are simply ABSENT from the
+data, so they are never predicted and the "projected 8, scored 0" error the feature was
+meant to catch does not exist in this dataset. What remained was thin:
+- only 5% of rows carry any injury designation (1,943 Questionable, 3 Doubtful, 0 Out)
+- practice_status is 82.6% null (present only for players already on the report)
+- 18% of rows do have a same-position teammate listed Out, which was the best hope
+
+### Both variants measured, both null (top-40 pool, 2021-2025)
+
+| | Stage 3 baseline | + counts | + vacated-points weighting |
+|---|---|---|---|
+| WR model MAE | 6.514 | 6.519 | 6.511 |
+| RB model MAE | 6.073 | 6.109 | 6.088 |
+
+The second variant weighted teammate absence by the absent player's most recent expected
+points (via merge_asof), since a WR1 sitting vacates far more opportunity than a WR5 and
+a plain count treats them identically. It was better than the count but still null on MAE.
+WR ranking metrics improved slightly (Spearman 0.252 -> 0.267, top-12 hit rate
+0.419 -> 0.435) while RB's got marginally worse — within noise across 180 folds. No
+availability feature reached the top 12 importances for either position.
+
+### Reverted, per the Phase 5 iteration-2 precedent
+`src/features_availability.py` deleted, join and feature-list entries removed. Confirmed
+the revert restores the committed numbers exactly (WR 7.258/6.806/6.821,
+RB 6.129/5.746/5.784).
+
+**The most valuable consequence of reverting: CLAUDE.md's leakage rule did NOT have to be
+amended.** The plan called for relaxing "strictly before week W" to "knowable at kickoff"
+so pre-kickoff injury reports would be legal. Since the features don't help, the project
+keeps its strictest invariant intact. Loosening a core safety rule to buy nothing would
+have been a bad trade.
+
+Worth knowing if this is revisited: the signal is absent because of how nflverse shapes
+the data, not because injuries don't matter. A dataset with a row per rostered player per
+week (including inactives) would make availability modelling essential — and that is also
+what a hurdle model would need to be worth building.
+
+### Hybrid retired as the shipped prediction
+Its premise died in Phase 10: the model now beats the baseline in both volume segments, so
+the baseline fallback is pure drag (all-rows WR 4.384 model vs 4.506 hybrid). `model_pred`
+is now what upcoming.py sorts by and what the GUI displays; `gui/prediction_ranges` and
+`data_access.get_segment_mae` key off `model_error` instead of `hybrid_error`.
+
+`hybrid` stays registered in comparators.py so every comparison in Phases 5-10 remains
+reproducible. Ranges are still segmented by volume even though the router is gone, because
+error scales with scoring level (~6.9 MAE for high-volume WRs vs ~3.7 for low) and a single
+band would be far too wide at the bottom and too narrow at the top.

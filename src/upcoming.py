@@ -213,6 +213,11 @@ def predict_upcoming(position, season=None, week=None):
 
     Columns: player_display_name, team, opponent_team, baseline_pred,
     model_pred, hybrid_pred -- baseline alongside model, per CLAUDE.md.
+
+    `model_pred` is the shipped projection. `hybrid_pred` is retained only for
+    continuity with the historical comparison: the hybrid's premise (that the model
+    loses to the baseline on low-volume players) stopped being true once the
+    expected-points features landed, so its baseline fallback is now pure drag.
     """
     if season is None or week is None:
         found = find_upcoming_week()
@@ -242,7 +247,7 @@ def predict_upcoming(position, season=None, week=None):
 
     out_cols = ["player_display_name", "position", "team", "opponent_team",
                 "baseline_pred", "model_pred", "hybrid_pred", "implied_total"]
-    result = upcoming[out_cols].sort_values("hybrid_pred", ascending=False).reset_index(drop=True)
+    result = upcoming[out_cols].sort_values("model_pred", ascending=False).reset_index(drop=True)
 
     meta = {"season": season, "week": week, "n_train_rows": n_train,
             "n_players": len(result), "hybrid_threshold": threshold}

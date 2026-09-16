@@ -10,13 +10,14 @@ GRID = "#e1e0d9"
 AXIS = "#c3c2b7"
 MUTED = "#898781"
 
+POINT_COL = "model_pred"
 TABLE_COLS = ["player_display_name", "actual", "baseline_pred", "model_pred",
-              "hybrid_pred", "baseline_error", "model_error", "hybrid_error"]
+              "baseline_error", "model_error"]
 
 
 def _calibration_chart(rows):
-    lo = float(min(rows["actual"].min(), rows["hybrid_pred"].min()))
-    hi = float(max(rows["actual"].max(), rows["hybrid_pred"].max()))
+    lo = float(min(rows["actual"].min(), rows[POINT_COL].min()))
+    hi = float(max(rows["actual"].max(), rows[POINT_COL].max()))
     domain = [lo - 1, hi + 1]
 
     # Neutral reference line: hybrid_pred == actual (perfect prediction).
@@ -34,7 +35,7 @@ def _calibration_chart(rows):
         .mark_circle(size=90, color=SERIES, opacity=0.85,
                      stroke="#fcfcfb", strokeWidth=2)
         .encode(
-            x=alt.X("hybrid_pred:Q", title="Predicted (hybrid)",
+            x=alt.X(f"{POINT_COL}:Q", title="Predicted (model)",
                     scale=alt.Scale(domain=domain),
                     axis=alt.Axis(gridColor=GRID, domainColor=AXIS, labelColor=MUTED,
                                   titleColor=MUTED, tickColor=AXIS)),
@@ -45,7 +46,7 @@ def _calibration_chart(rows):
             tooltip=[
                 alt.Tooltip("player_display_name:N", title="Player"),
                 alt.Tooltip("actual:Q", title="Actual", format=".1f"),
-                alt.Tooltip("hybrid_pred:Q", title="Hybrid", format=".1f"),
+                alt.Tooltip(f"{POINT_COL}:Q", title="Model", format=".1f"),
                 alt.Tooltip("baseline_pred:Q", title="Baseline", format=".1f"),
             ],
         )
@@ -71,10 +72,9 @@ def render(position, week, data):
     )
 
     # Baseline shown next to every model result (CLAUDE.md hard rule).
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(2)
     c1.metric("Baseline MAE", f"{rows['baseline_error'].mean():.3f}")
     c2.metric("Model MAE", f"{rows['model_error'].mean():.3f}")
-    c3.metric("Hybrid MAE", f"{rows['hybrid_error'].mean():.3f}")
 
     st.altair_chart(_calibration_chart(rows), width='stretch')
     st.caption(

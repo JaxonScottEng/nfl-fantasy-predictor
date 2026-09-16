@@ -11,7 +11,7 @@ No view code changes -- views discover methods via available_methods().
 MAE_APPROX = "mae_approx"
 
 
-def _mae_approx_range(player_row, segment_mae=None, point_col="hybrid_pred", **_):
+def _mae_approx_range(player_row, segment_mae=None, point_col="model_pred", **_):
     """
     Point prediction +/- the model's historical MAE for this player's volume
     segment (high/low, split at the position's hybrid threshold).
@@ -45,10 +45,9 @@ METHOD_LABELS = {
 METHOD_CAVEATS = {
     MAE_APPROX: (
         "Approximation, not a confidence interval. This is the point prediction "
-        "plus/minus the hybrid model's average absolute error for this position "
-        "and volume segment, measured on the 2023 walk-forward validation. It has "
-        "no coverage guarantee and does not adapt to an individual player's "
-        "week-to-week variance."
+        "plus/minus the model's average absolute error for this position and volume "
+        "segment, measured on walk-forward validation. It has no coverage guarantee "
+        "and does not adapt to an individual player's week-to-week variance."
     ),
 }
 

@@ -11,8 +11,9 @@ AXIS = "#c3c2b7"
 MUTED = "#898781"
 
 TOP_N = 15
+POINT_COL = "model_pred"
 TABLE_COLS = ["player_display_name", "team", "opponent_team", "baseline_pred",
-              "model_pred", "hybrid_pred", "range_low", "range_high"]
+              "model_pred", "range_low", "range_high", "implied_total"]
 
 
 def _projection_chart(rows):
@@ -40,13 +41,13 @@ def _projection_chart(rows):
     layers.append(
         base.mark_circle(size=110, color=SERIES, opacity=0.9,
                          stroke="#fcfcfb", strokeWidth=2).encode(
-            x=alt.X("hybrid_pred:Q", title="Projected PPR points",
+            x=alt.X(f"{POINT_COL}:Q", title="Projected PPR points",
                     axis=alt.Axis(gridColor=GRID, domainColor=AXIS,
                                   labelColor=MUTED, titleColor=MUTED, tickColor=AXIS)),
             tooltip=[
                 alt.Tooltip("player_display_name:N", title="Player"),
                 alt.Tooltip("opponent_team:N", title="Opponent"),
-                alt.Tooltip("hybrid_pred:Q", title="Hybrid", format=".1f"),
+                alt.Tooltip(f"{POINT_COL}:Q", title="Projection", format=".1f"),
                 alt.Tooltip("baseline_pred:Q", title="Baseline", format=".1f"),
                 alt.Tooltip("range_low:Q", title="Range low", format=".1f"),
                 alt.Tooltip("range_high:Q", title="Range high", format=".1f"),
@@ -107,6 +108,6 @@ def render(position, week, data):
         st.warning(prediction_ranges.METHOD_CAVEATS.get(method, ""), icon="⚠️")
 
     st.altair_chart(_projection_chart(rows), width='stretch')
-    st.caption(f"Top {min(TOP_N, len(rows))} by hybrid projection. Bars show the approximate range.")
+    st.caption(f"Top {min(TOP_N, len(rows))} by model projection. Bars show the approximate range.")
 
     st.dataframe(rows[TABLE_COLS], width='stretch', hide_index=True)
