@@ -171,3 +171,74 @@ Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, l
   season boundary by design, since features group by player_id only). Consistent
   with the existing baseline convention -- not a bug, but worth knowing when a
   week-2 projection looks driven by last year's form.
+
+
+## Phase 8 — Evaluation harness, and the honest comparison
+
+### Why
+Every result so far was measured only against our own last-4-average baseline, so
+"4.492 MAE" said nothing about whether this is competitive with anything. Built a
+measurement layer first, then looked.
+
+### The registry convention now actually exists
+CLAUDE.md claimed a "registry + recipe" extension pattern; the only thing implementing
+it was gui/prediction_ranges.py's private _METHODS dict. `src/registry.py` generalizes
+it, and metrics / pools / comparators all extend by writing one decorated function:
+- `src/metrics.py` — mae, rmse, r2, mean_error (bias), spearman_within,
+  top_n_hit_rate, cov_weekly_mae. train.py now imports mae/rmse from here instead
+  of defining its own (verified byte-identical output).
+- `src/pools.py` — all / top_n_by_projection / union_top_n.
+- `src/comparators.py` — baseline_last4, xgb_model, hybrid. Shares `XGB_PARAMS`
+  with train.py so a comparator can never silently drift from what training fits.
+- `src/evaluate.py` — `run_evaluation()` returns ROW-LEVEL predictions, not
+  aggregated metrics, because pooled MAE across folds is NOT the mean of per-fold
+  MAEs (folds differ in size) and CoV-of-weekly-MAE needs the per-week breakdown.
+
+### Fidelity gate passed
+Harness at pool=all, seasons=[2023] reproduces train.py exactly: WR
+4.677/4.543/4.492, RB 4.543/4.489/4.390. Kept as `evaluate.check_fidelity()`.
+
+### PLAN DEVIATION (for the better)
+The plan called for changing `walk_forward_folds` to yield a 4-tuple with the season.
+Unnecessary: the harness loops over seasons and passes `validation_season` itself, so
+it already knows the season. Left the 3-tuple alone — no breaking change, no broken
+intermediate state, and no risk to the locked-in numbers.
+
+### THE HEADLINE FINDING: we are well behind the field
+Published studies (Fantasy Football Analytics, 11 seasons / 9 sources; FantasyPros)
+evaluate the **top 40 WR/RB by projected points per week**, not every player. Our
+2429 WR rows/season was ~140 WRs/week — 3.5x that pool — and the extra WR4/WR5s
+score near zero and are trivially predictable, which dragged MAE down by ~30%.
+
+Top-40 pool, 2021-2025, 180 folds, 21,600 scored rows:
+
+| | WR MAE | RB MAE |
+|---|---|---|
+| Baseline | 7.045 | 6.492 |
+| Model | 6.539 | 6.137 |
+| Hybrid | 6.509 | 6.166 |
+| **Published best-in-class** | **4.84-4.94** | **5.06-5.20** |
+
+So: ~34% behind on WR, ~21% behind on RB. The old 4.492 was an artifact of the pool,
+not a competitive result. Per-season MAE is stable (WR model 6.305-6.704 across
+2021-2025), so this is a real gap, not noise.
+
+### Diagnostics the new metrics immediately surfaced
+- `mean_error` is negative for the model (-0.135 WR, -0.184 RB pooled; -0.76/-1.03 on
+  2023 alone) — it systematically UNDER-projects top-40 players. Classic
+  regression-to-the-mean shrinkage from training on a pool dominated by low-volume
+  players. A concrete, fixable target.
+- The baseline's R^2 on the top-40 pool is NEGATIVE (-0.043 WR) — worse than
+  predicting the weekly mean. It only looked respectable because deep-bench rows
+  flattered it.
+- **RB's hybrid is now WORSE than the plain model** (6.166 vs 6.137). The 12.0
+  threshold was tuned against the all-rows metric; on the pool that matters it hurts.
+  Reinforces retiring the hybrid in favour of a calibrated p_play (Stage 4).
+- top_n_hit_rate (top 12 of the top 40) is only 0.42 WR / 0.46 RB.
+
+### Official metric switched
+CLAUDE.md's Verification section is now the top-40 pool, and
+`.claude/hooks/check_wr_regression.py` runs `python src/evaluate.py --regression`
+(single season, ~same cost as before) instead of parsing train.py. Locked-in 2023
+top-40: WR 7.213/6.704/6.688, RB 6.110/5.756/5.814. The all-rows numbers survive only
+as the fidelity check, explicitly not as an accuracy claim.

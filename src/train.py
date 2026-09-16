@@ -25,7 +25,12 @@ import pandas as pd
 import xgboost as xgb
 import config
 from build_features import build_full_feature_table
+from metrics import mae, rmse
 from validation import walk_forward_folds
+
+# Single source of truth for the model spec, so evaluation comparators can never
+# silently drift from what training actually fits.
+XGB_PARAMS = dict(n_estimators=200, max_depth=4, learning_rate=0.05, random_state=42)
 
 # baseline_pred cutoff; matches the error-analysis split.
 # WR's 12.0 comes from the Phase 5 WR error analysis. RB inherits that same
@@ -81,14 +86,6 @@ FEATURE_COLS_BY_POSITION = {
 }
 
 
-def mae(y_true, y_pred):
-    return np.mean(np.abs(y_true - y_pred))
-
-
-def rmse(y_true, y_pred):
-    return np.sqrt(np.mean((y_true - y_pred) ** 2))
-
-
 def run_position(df, position, save_details=False):
     """Walk-forward train/evaluate a single position on its own rows."""
     feature_cols = FEATURE_COLS_BY_POSITION[position]
@@ -109,9 +106,7 @@ def run_position(df, position, save_details=False):
         X_train, y_train = train_df[feature_cols], train_df[config.TARGET]
         X_test, y_test = test_df[feature_cols], test_df[config.TARGET]
 
-        model = xgb.XGBRegressor(
-            n_estimators=200, max_depth=4, learning_rate=0.05, random_state=42,
-        )
+        model = xgb.XGBRegressor(**XGB_PARAMS)
         model.fit(X_train, y_train)
         preds = model.predict(X_test)
         last_model = model

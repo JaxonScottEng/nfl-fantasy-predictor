@@ -28,6 +28,14 @@ to `config.ACTIVE_POSITIONS`, give it a feature list in `train.py`'s
 - `src/features_context.py` — schedule/Vegas join, team-code normalization
 - `src/build_features.py` — joins player + defense + context into one table
 - `src/train.py` — walk-forward training: baseline vs model vs hybrid
+- `src/registry.py` — generic id→function registry; the extension seam used by
+  metrics, pools and comparators (and mirrored by `gui/prediction_ranges.py`)
+- `src/metrics.py` — accuracy metrics registry (MAE, RMSE, R², bias, Spearman,
+  top-N hit rate, CoV of weekly MAE). `train.py` imports `mae`/`rmse` from here
+- `src/pools.py` — player-pool definitions; this is what makes results comparable
+- `src/comparators.py` — anything scoreable (baseline, model, hybrid), one per function
+- `src/evaluate.py` — the harness: `run_evaluation()` → row-level predictions,
+  `summarize()` → metrics, `check_fidelity()` → proves it matches `train.py`
 - `src/upcoming.py` — predictions for a not-yet-played week (placeholder-row
   trick: reuses the existing lagged feature builders, so no leakage)
 - `src/error_analysis.py` — segment-level error breakdown
@@ -43,6 +51,8 @@ to `config.ACTIVE_POSITIONS`, give it a feature list in `train.py`'s
 - `python src/train.py` — run walk-forward training, print MAE/RMSE comparison
 - `python src/validation.py` — run fold generator standalone, verify no leakage
 - `python src/upcoming.py` — print next unplayed week's predictions per position
+- `python src/evaluate.py [seasons...]` — fidelity check + top-40 accuracy table
+- `python src/evaluate.py --regression` — fast machine-readable numbers (hook uses this)
 - `streamlit run app.py` — launch the local GUI
 
 Run every command from the PROJECT ROOT. `data_load.CACHE_PATH` is relative, so a
@@ -50,29 +60,60 @@ different cwd silently reads/writes a different cache.
 
 ## Verification
 
-Always run after changes: `python src/train.py`
+Always run after changes: `python src/evaluate.py`
 
-Confirm results are unchanged unless the change specifically targets them.
-Each position is trained and evaluated separately (2023 walk-forward, weeks
-1–18, 18 folds):
+### The official metric: top-40 pool
 
-WR (2429 rows):
-- Baseline MAE 4.677, RMSE 6.579
-- Model MAE 4.543, RMSE 6.263
-- Hybrid MAE 4.492, RMSE 6.360
+Accuracy is measured on the **top 40 WR/RB by projected points per week** (top 20
+for QB/TE if added) — the pool convention published accuracy studies use. The old
+all-rows numbers are retired: scoring every WR with a prior game (~140/week) includes
+deep-bench players who score near zero and are trivial to predict, which made MAE look
+~30% better than it is. A number from one pool cannot be compared to a number from
+another. See `src/pools.py`.
 
-RB (1445 rows):
-- Baseline MAE 4.543, RMSE 6.445
-- Model MAE 4.489, RMSE 6.112
-- Hybrid MAE 4.390, RMSE 6.243
+**Locked-in, 2023 walk-forward, top-40 pool** (what the hook checks):
 
-If any of these move without an intentional cause, stop and investigate before
+| | WR MAE | WR RMSE | RB MAE | RB RMSE |
+|---|---|---|---|---|
+| Baseline (last-4 avg) | 7.213 | 9.081 | 6.110 | 7.823 |
+| Model (XGBoost) | 6.704 | 8.605 | 5.756 | 7.348 |
+| Hybrid (segmented) | 6.688 | 8.629 | 5.814 | 7.495 |
+
+**Multi-season, 2021–2025, top-40 pool** (180 folds, 21,600 scored rows — the
+headline figure for any external claim):
+
+| | WR MAE | RB MAE |
+|---|---|---|
+| Baseline | 7.045 | 6.492 |
+| Model | 6.539 | 6.137 |
+| Hybrid | 6.509 | 6.166 |
+
+Run with `python src/evaluate.py 2021 2022 2023 2024 2025`.
+
+### Where we actually stand
+
+Published best-in-class on the same pool convention: **WR 4.84–4.94, RB 5.06–5.20**
+(Fantasy Football Analytics, 11 seasons / 9 sources; FantasyPros recent). We are
+roughly **34% behind on WR and 21% behind on RB**. Do not describe this project as
+competitive with commercial projections until those gaps close.
+
+Context for what is achievable: best-in-class projections explain only 3–23% of weekly
+variance, and WR MAE ~4.8–4.9 is near the practical floor. Chasing a much lower number
+is not realistic; the winnable axes are availability handling, rank ordering and
+calibrated distributions.
+
+If any locked-in number moves without an intentional cause, stop and investigate before
 proceeding — treat unexplained improvement as a leakage suspect, not a win.
 
-These numbers are also enforced automatically: a `PostToolUse` hook
-(`.claude/hooks/check_wr_regression.py`, registered in `.claude/settings.json`)
-re-runs `src/train.py` after any edit to `src/*.py` and warns loudly on drift.
-Update the expectations in that script whenever this section changes.
+These numbers are enforced automatically: a `PostToolUse` hook
+(`.claude/hooks/check_wr_regression.py`, registered in `.claude/settings.json`) runs
+`python src/evaluate.py --regression` after any edit to `src/*.py` and warns loudly on
+drift. Update `EXPECTED_MAE` in that script whenever this section changes.
+
+`python src/train.py` still prints the older all-rows figures (WR 4.677/4.543/4.492,
+RB 4.543/4.489/4.390). Those are kept only as the harness fidelity check
+(`evaluate.check_fidelity`), which proves the harness measures what training measures.
+They are not a claim about accuracy.
 
 ## Hard Rules (never violate)
 
