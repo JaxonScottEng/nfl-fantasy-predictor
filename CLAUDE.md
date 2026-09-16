@@ -73,20 +73,20 @@ another. See `src/pools.py`.
 
 **Locked-in, 2023 walk-forward, top-40 pool** (what the hook checks):
 
-| | WR MAE | WR RMSE | RB MAE | RB RMSE |
-|---|---|---|---|---|
-| Baseline (last-4 avg) | 7.213 | 9.081 | 6.110 | 7.823 |
-| Model (XGBoost) | 6.704 | 8.605 | 5.756 | 7.348 |
-| Hybrid (segmented) | 6.688 | 8.629 | 5.814 | 7.495 |
+| | WR MAE | RB MAE |
+|---|---|---|
+| Baseline (last-4 avg) | 7.286 | 6.155 |
+| Model (XGBoost) | 6.760 | 5.785 |
+| Hybrid (segmented) | 6.760 | 5.838 |
 
 **Multi-season, 2021–2025, top-40 pool** (180 folds, 21,600 scored rows — the
 headline figure for any external claim):
 
 | | WR MAE | RB MAE |
 |---|---|---|
-| Baseline | 7.045 | 6.492 |
-| Model | 6.539 | 6.137 |
-| Hybrid | 6.509 | 6.166 |
+| Baseline | 7.100 | 6.548 |
+| Model | 6.578 | 6.168 |
+| Hybrid | 6.550 | 6.196 |
 
 Run with `python src/evaluate.py 2021 2022 2023 2024 2025`.
 
@@ -110,10 +110,10 @@ These numbers are enforced automatically: a `PostToolUse` hook
 `python src/evaluate.py --regression` after any edit to `src/*.py` and warns loudly on
 drift. Update `EXPECTED_MAE` in that script whenever this section changes.
 
-`python src/train.py` still prints the older all-rows figures (WR 4.677/4.543/4.492,
-RB 4.543/4.489/4.390). Those are kept only as the harness fidelity check
-(`evaluate.check_fidelity`), which proves the harness measures what training measures.
-They are not a claim about accuracy.
+`python src/train.py` still prints all-rows figures. Those exist only for the harness
+fidelity check (`evaluate.check_fidelity`), which proves the harness measures what
+training measures. They are not a claim about accuracy, and `FIDELITY_TARGETS` in
+`src/evaluate.py` must be updated alongside this section whenever the pipeline changes.
 
 ## Hard Rules (never violate)
 

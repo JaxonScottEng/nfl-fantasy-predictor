@@ -6,6 +6,24 @@ import config
 
 CACHE_PATH = "data/raw/weekly_stats.parquet"
 
+REGULAR_SEASON = "REG"
+
+
+def filter_regular_season(df):
+    """
+    Drop postseason rows.
+
+    Must be applied BEFORE any rolling, or playoff games still enter the windows
+    even when they're excluded as prediction targets. Playoff games have a
+    different player pool (only 14 teams, and resting starters), so mixing them
+    into training and into rolling averages compares unlike things.
+
+    Called explicitly by every module that reads raw weekly data rather than
+    hidden inside load_weekly(), because forgetting it in one place is exactly
+    the bug this fixes.
+    """
+    return df[df["season_type"] == REGULAR_SEASON].copy()
+
 def load_weekly(seasons=None, force_refresh=False):
     seasons = seasons or config.SEASONS
 

@@ -242,3 +242,54 @@ CLAUDE.md's Verification section is now the top-40 pool, and
 (single season, ~same cost as before) instead of parsing train.py. Locked-in 2023
 top-40: WR 7.213/6.704/6.688, RB 6.110/5.756/5.814. The all-rows numbers survive only
 as the fidelity check, explicitly not as an accuracy claim.
+
+
+## Phase 9 — Playoff contamination fix
+
+### The bug
+`season_type` was unused. The cache holds 7,879 POST rows, and
+`MAX_VALIDATION_WEEK = 18` filtered playoffs ONLY for the validation season — so
+2016-2022 playoff games sat inside training data AND inside every rolling window.
+Playoff games have a different player pool (14 teams, resting starters), so this
+mixed unlike things into both training and each player's "last 4 games".
+
+### The fix
+`data_load.filter_regular_season(df)` applied in all four modules that read raw
+weekly data — `build_target.get_target_table`, `features_player.build_player_features`,
+`features_opponent.build_opponent_defense_features`, and
+`upcoming.build_upcoming_feature_table`. It runs BEFORE any rolling; filtering only
+the prediction targets would still leave playoff games inside the windows.
+
+Deliberately called explicitly in four places rather than hidden inside
+`load_weekly()`, because forgetting it in one place is precisely the bug being fixed —
+and `upcoming.py` needed it too, so a live projection's rolling window means the same
+thing as a training row's.
+
+Verified: 7,879 rows dropped, and max week per season is now exactly 17 for <=2020 and
+18 for >=2021 — zero postseason weeks anywhere in the feature table.
+
+### Effect on results (all slightly WORSE, which is correct)
+Removing playoff games removes training data and shortens some rolling windows.
+
+Top-40 pool, 2021-2025:
+
+| | WR before | WR after | RB before | RB after |
+|---|---|---|---|---|
+| Baseline | 7.045 | 7.100 | 6.492 | 6.548 |
+| Model | 6.539 | 6.578 | 6.137 | 6.168 |
+| Hybrid | 6.509 | 6.550 | 6.166 | 6.196 |
+
+All-rows (fidelity check only): WR 4.677/4.543/4.492 -> 4.685/4.559/4.502;
+RB 4.543/4.489/4.390 -> 4.551/4.496/4.393.
+
+A worse number here is the correct outcome, not a regression — the previous figure was
+partly borrowed from data that shouldn't have been in scope. Three places had to be
+updated together: CLAUDE.md's Verification section, `EXPECTED_MAE` in the hook, and
+`FIDELITY_TARGETS` in `src/evaluate.py`.
+
+### Note on the hook working as designed
+Each of the four edits tripped the regression hook with a loud failure before the
+expectations were updated. That is the intended behaviour for a change that moves the
+frozen numbers — the alarm fired every time, and the numbers stabilised at
+WR 7.286/6.760/6.760 and RB 6.155/5.785/5.838 (2023 top-40) once all four readers were
+filtered, which is itself evidence the four call sites were the complete set.

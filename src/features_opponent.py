@@ -4,11 +4,11 @@ Opponent defensive strength: fantasy points allowed to the position,
 rolling and lagged -- computed the same careful way as player features.
 """
 import config
-from data_load import load_weekly
+from data_load import load_weekly, filter_regular_season
 
 def build_opponent_defense_features(windows=None):
     windows = windows or config.ROLLING_WINDOWS
-    raw = load_weekly()
+    raw = filter_regular_season(load_weekly())
     pos_df = raw[raw["position"].isin(config.ACTIVE_POSITIONS)].copy()
 
     # Points allowed BY a team TO the position, per week they played defense.

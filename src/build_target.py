@@ -1,10 +1,10 @@
 # build_target.py
 import pandas as pd
 import config
-from data_load import load_weekly
+from data_load import load_weekly, filter_regular_season
 
 def get_target_table():
-    df = load_weekly()
+    df = filter_regular_season(load_weekly())
     df = df[df["position"].isin(config.ACTIVE_POSITIONS)].copy()
 
     # Sort by player then by actual game order — NOT week number.

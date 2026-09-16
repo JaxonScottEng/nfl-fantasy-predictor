@@ -7,7 +7,7 @@ rolling, grouped by player_id, so the current week is never included.
 import numpy as np
 import pandas as pd
 import config
-from data_load import load_weekly
+from data_load import load_weekly, filter_regular_season
 
 # Raw stat columns we'll build rolling features from.
 # Verified against the real column list from Phase 0 — adjust here if
@@ -48,7 +48,7 @@ def add_rolling_player_features(df, windows=None):
     return df
 
 def build_player_features():
-    raw = load_weekly()
+    raw = filter_regular_season(load_weekly())
     wr = raw[raw["position"].isin(config.ACTIVE_POSITIONS)].copy()
     keep = ["player_id", "player_display_name", "position", "season", "week",
             "team", "opponent_team", config.TARGET] + USAGE_COLS + PROD_COLS

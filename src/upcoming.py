@@ -21,7 +21,7 @@ import xgboost as xgb
 import nflreadpy as nfl
 
 import config
-from data_load import load_weekly
+from data_load import load_weekly, filter_regular_season
 from features_player import add_rolling_player_features, USAGE_COLS, PROD_COLS
 from features_opponent import build_opponent_defense_features
 from features_context import load_schedule_context, normalize_team_codes
@@ -114,7 +114,9 @@ def build_upcoming_feature_table(position, season, week):
     Feature table containing ONLY the upcoming week's rows for `position`,
     with every feature computed from strictly-earlier games.
     """
-    weekly = load_weekly()
+    # Regular season only, matching the training pipeline -- a player's rolling
+    # window must mean the same thing here as it does during training.
+    weekly = filter_regular_season(load_weekly())
     matchups = _upcoming_matchups(season, week)
 
     placeholders = _placeholder_player_rows(weekly, position, season, week, matchups)
