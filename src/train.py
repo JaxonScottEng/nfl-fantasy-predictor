@@ -116,7 +116,6 @@ def run_position(df, position, save_details=False):
     pos_df = df[df["position"] == position]
 
     model_preds, baseline_preds, hybrid_preds, actuals = [], [], [], []
-    detail_rows = []
     last_model = None
     fold_count = 0
 
@@ -145,19 +144,6 @@ def run_position(df, position, save_details=False):
         hybrid_preds.extend(hybrid_vals)
         actuals.extend(y_test.values)
         fold_count += 1
-
-        if save_details:
-            for i, (_, row) in enumerate(test_df.iterrows()):
-                detail_rows.append({
-                    "player_display_name": row["player_display_name"],
-                    "position": position,
-                    "season": row["season"],
-                    "week": row["week"],
-                    "actual": y_test.values[i],
-                    "model_pred": preds[i],
-                    "baseline_pred": baseline_vals[i],
-                    "hybrid_pred": hybrid_vals[i],
-                })
 
     actuals = np.array(actuals)
     model_preds = np.array(model_preds)
@@ -205,16 +191,10 @@ def run_walk_forward_training(save_details=False):
         results[position] = result
         all_detail_rows.extend(result["detail_rows"])
 
-    if save_details and all_detail_rows:
-        detail_df = pd.DataFrame(all_detail_rows)
-        detail_df["model_error"] = (detail_df["actual"] - detail_df["model_pred"]).abs()
-        detail_df["baseline_error"] = (detail_df["actual"] - detail_df["baseline_pred"]).abs()
-        detail_df["hybrid_error"] = (detail_df["actual"] - detail_df["hybrid_pred"]).abs()
-        detail_df["model_advantage"] = detail_df["baseline_error"] - detail_df["model_error"]
-        detail_df["hybrid_advantage"] = detail_df["baseline_error"] - detail_df["hybrid_error"]
-        detail_df.to_csv("data/processed/predictions_detail.csv", index=False)
-        print("Saved row-level predictions to data/processed/predictions_detail.csv")
-
+    # predictions_detail.csv is written by evaluate.write_prediction_details(), not
+    # here: only the evaluation layer can reach the comparator registry (train.py
+    # importing it would be a cycle), and that is where the shipped ensemble and its
+    # quantile interval are defined. This script stays the fidelity anchor.
     return results
 
 

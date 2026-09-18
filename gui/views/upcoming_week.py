@@ -11,9 +11,9 @@ AXIS = "#c3c2b7"
 MUTED = "#898781"
 
 TOP_N = 15
-POINT_COL = "model_pred"
+POINT_COL = "ensemble_pred"
 TABLE_COLS = ["player_display_name", "team", "opponent_team", "baseline_pred",
-              "model_pred", "range_low", "range_high", "implied_total"]
+              "model_pred", "ensemble_pred", "range_low", "range_high", "implied_total"]
 
 
 def _projection_chart(rows):
@@ -81,9 +81,10 @@ def render(position, week, data):
 
     st.subheader(f"{position} — {meta['season']} week {meta['week']} projections")
     st.caption(
-        f"{meta['n_players']} players, model trained on {meta['n_train_rows']:,} "
-        "completed player-games strictly before this week. Features use only prior "
-        "games, so no same-week data leaks in."
+        f"{meta['n_players']} players. `ensemble_pred` is the shipped projection "
+        "(mean of XGBoost and ridge); `model_pred` is XGBoost alone, shown for "
+        "comparison. Trained only on games completed before this week, so no "
+        "same-week data leaks in."
     )
 
     methods = prediction_ranges.available_methods()

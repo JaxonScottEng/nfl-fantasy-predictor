@@ -20,9 +20,11 @@ import sys
 # Locked-in MAE per position, mirroring CLAUDE.md's Verification section.
 # Top-40 pool, 2023. Anchored per position and comparator so a change in
 # print order can never check one against another's expectations.
+# ensemble_xgb_ridge is the SHIPPED projection; xgb_model and the baseline are kept
+# as the reference points every result is judged against.
 EXPECTED_MAE = {
-    "WR": {"baseline_last4": 7.258, "xgb_model": 6.806, "hybrid": 6.821},
-    "RB": {"baseline_last4": 6.129, "xgb_model": 5.746, "hybrid": 5.784},
+    "WR": {"baseline_last4": 7.258, "xgb_model": 6.806, "ensemble_xgb_ridge": 6.759},
+    "RB": {"baseline_last4": 6.129, "xgb_model": 5.746, "ensemble_xgb_ridge": 5.758},
 }
 
 EXCLUDED_BASENAMES = {"LOG.md", "CLAUDE.md", "README.md"}
@@ -135,12 +137,12 @@ def main():
         return
 
     summary = "; ".join(
-        f"{position} {m['baseline_last4']:.3f}/{m['xgb_model']:.3f}/{m['hybrid']:.3f}"
+        f"{position} {m['baseline_last4']:.3f}/{m['xgb_model']:.3f}/{m['ensemble_xgb_ridge']:.3f}"
         for position, m in actual.items()
     )
     print(
         f"Regression check passed (edited {file_path}): top-40 pool "
-        f"baseline/model/hybrid MAE {summary} -- all match CLAUDE.md.",
+        f"baseline/model/ensemble MAE {summary} -- all match CLAUDE.md.",
         file=sys.stderr,
     )
     sys.exit(0)

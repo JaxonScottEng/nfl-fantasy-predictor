@@ -28,7 +28,9 @@ os.chdir(PROJECT_ROOT)
 import config                                     # noqa: E402
 import train                                      # noqa: E402
 import upcoming as upcoming_pipeline              # noqa: E402
+import player_timeline as timeline_pipeline       # noqa: E402
 from data_load import load_weekly                 # noqa: E402
+from features_context import load_schedules_cached  # noqa: E402
 from build_features import build_full_feature_table  # noqa: E402
 
 RAW_CACHE = os.path.join(PROJECT_ROOT, "data", "raw", "weekly_stats.parquet")
@@ -96,8 +98,8 @@ def get_segment_mae(position):
 
     return {
         "threshold": threshold,
-        "high": float(high["model_error"].mean()) if len(high) else None,
-        "low": float(low["model_error"].mean()) if len(low) else None,
+        "high": float(high["ensemble_error"].mean()) if len(high) else None,
+        "low": float(low["ensemble_error"].mean()) if len(low) else None,
         "n_high": len(high),
         "n_low": len(low),
     }
@@ -114,22 +116,61 @@ def load_feature_table():
     return build_full_feature_table()
 
 
+@st.cache_data(show_spinner=False)
+def get_timeline_seasons():
+    """
+    Seasons the player-season view can show. Capped to recent seasons because each
+    one costs a full walk-forward pass the first time it is opened.
+    """
+    seasons = [s for s in config.SEASONS if s >= config.VALIDATION_SEASON]
+    return sorted(seasons)
+
+
+@st.cache_data(show_spinner=False)
+def get_players(position, season):
+    """Players at `position` with at least one completed game that season."""
+    df = load_feature_table()
+    played = df[(df["position"] == position) & (df["season"] == season)]
+    played = played.dropna(subset=[config.TARGET])
+    return sorted(played["player_display_name"].dropna().unique().tolist())
+
+
+@st.cache_data(show_spinner=False)
+def load_position_timeline(position, season):
+    """Whole-season timeline for a position. Expensive; cached per position/season."""
+    return timeline_pipeline.build_position_timeline(position, season)
+
+
+def load_player_timeline(position, season, player_display_name):
+    df, meta = load_position_timeline(position, season)
+    if len(df) == 0:
+        return df, meta
+    player_rows = df[df["player_display_name"] == player_display_name]
+    return player_rows.sort_values("week").reset_index(drop=True), meta
+
+
 def refresh_data():
     """
     Explicit, user-triggered: re-pull from nflverse and rebuild features.
     Never runs on page load.
+
+    Schedules are refreshed too -- they carry results and betting lines for the
+    current season, so without this a newly completed week would stay invisible.
     """
     load_weekly(force_refresh=True)
+    load_schedules_cached(force_refresh=True)
     build_full_feature_table()
     st.cache_data.clear()
 
 
 def run_training():
     """
-    Re-run walk-forward training, regenerating predictions_detail.csv.
-    Slow (minutes) -- kept separate from refresh_data for that reason.
+    Re-run walk-forward evaluation, regenerating predictions_detail.csv with every
+    comparator's predictions. Slow (minutes) -- kept separate from refresh_data.
     """
-    train.run_walk_forward_training(save_details=True)
+    import evaluate
+
+    evaluate.write_prediction_details()
     st.cache_data.clear()
 
 

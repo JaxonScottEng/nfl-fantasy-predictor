@@ -8,12 +8,13 @@ then add one line to VIEWS below. Nothing else changes.
 import streamlit as st
 
 from gui import data_access
-from gui.views import past_results, upcoming_week
+from gui.views import past_results, player_season, upcoming_week
 
 # id -> render function. The one place a new view gets registered.
 VIEWS = {
     "Past Results": past_results.render,
     "Upcoming Week": upcoming_week.render,
+    "Player Season": player_season.render,
 }
 
 st.set_page_config(page_title="NFL Fantasy Predictor", page_icon="🏈", layout="wide")

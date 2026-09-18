@@ -1,6 +1,7 @@
 # features_context.py
 import nflreadpy as nfl
 import config
+from data_load import cached_table
 
 TEAM_CODE_FIXES = {
     "OAK": "LV",
@@ -15,8 +16,25 @@ def normalize_team_codes(df, cols):
         df[col] = df[col].replace(TEAM_CODE_FIXES)
     return df
 
+def load_schedules_cached(force_refresh=False):
+    """
+    Schedules, results and betting lines, cached to parquet like every other table.
+
+    Previously this was the one nflverse call made on every run, which made the live
+    projection path depend on the network each time -- and it did fail once mid-build.
+    Note the tradeoff: the current season's rows change weekly as games finish and
+    lines post, so this cache must be refreshed to see a new week. "Refresh Data" in
+    the GUI does that, matching the project's explicit-refresh-only convention.
+    """
+    return cached_table(
+        "schedules",
+        lambda: nfl.load_schedules(config.SEASONS),
+        force_refresh=force_refresh,
+    )
+
+
 def load_schedule_context():
-    sched = nfl.load_schedules(config.SEASONS).to_pandas()
+    sched = load_schedules_cached()
 
     keep = ["season", "week", "home_team", "away_team",
             "spread_line", "total_line"]

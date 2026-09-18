@@ -424,3 +424,92 @@ is now what upcoming.py sorts by and what the GUI displays; `gui/prediction_rang
 reproducible. Ranges are still segmented by volume even though the router is gone, because
 error scales with scoring level (~6.9 MAE for high-volume WRs vs ~3.7 for low) and a single
 band would be far too wide at the bottom and too narrow at the top.
+
+
+## Phase 12 — Quantile regression and ensembling
+
+### The objective-alignment insight
+Our headline metric is MAE, which is minimized by the conditional MEDIAN, but the model
+trained on `reg:squarederror`, which optimizes the conditional MEAN. Training at
+alpha=0.5 therefore optimizes the thing we actually report. It worked: xgb_q50 beat
+xgb_model on MAE (WR 6.499 vs 6.514, RB 6.020 vs 6.073).
+
+But q50 is NOT strictly better, and this is the important part: its bias is -2.08 (RB)
+and -2.26 (WR), and its R^2 collapses (WR 0.002 vs 0.073). A median sits below the mean
+on a right-skewed distribution. It trades calibration for MAE.
+
+### Surprise: ridge alone beats XGBoost
+WR 6.485 vs 6.514, RB 6.052 vs 6.073. A plain linear model over the same features beats
+the tuned tree model on both positions. Worth remembering before assuming the tree model
+is near its ceiling -- and it is exactly why an ensemble of the two helps: they err
+differently.
+
+### Ensembling reproduces the literature's most robust finding
+Aggregation beat every individual member. Top-40 pool, 2021-2025:
+
+| | WR MAE | RB MAE | bias | WR R^2 |
+|---|---|---|---|---|
+| ensemble xgb+q50+ridge | **6.427** | **5.973** | -0.84 | 0.073 |
+| **ensemble xgb+ridge (SHIPPED)** | 6.474 | 6.029 | **-0.13** | **0.083** |
+| ridge | 6.485 | 6.052 | -0.27 | 0.076 |
+| xgb_q50 | 6.499 | 6.020 | -2.26 | 0.002 |
+| xgb_model (previous shipped) | 6.514 | 6.073 | +0.01 | 0.073 |
+
+### We shipped the SECOND-best MAE on purpose
+The 3-way won MAE but its average bias of -0.84 hides the real problem: the median's
+downward pull scales with skew, and skew scales with volume. Checked on a real player --
+Puka Nacua, 2026 wk2: xgb_model 22.7, 3-way ensemble **18.4**. About -4.4 on an elite
+WR, which would read visibly wrong beside any commercial projection, for a 0.7% MAE gain.
+
+Lesson worth keeping: an aggregate bias figure can hide a large, structured error
+concentrated exactly where it matters most. Check a metric on real individual rows
+before trusting its average.
+
+### Intervals are real now, and the old band was lying
+q10-q90 coverage measured **0.778 WR / 0.785 RB** on the top-40 pool (0.825 / 0.821 on
+all rows) against an 0.80 target -- honest within a couple of points.
+They are also ~19 points wide, where the retired +/- MAE band was ~13.8 and flat for
+everyone in a segment. So that band was not merely approximate, it was UNDERSTATING
+uncertainty, and it never had a coverage guarantee to check. `gui/prediction_ranges`
+now offers "quantile" first; `mae_approx` stays for comparison.
+
+### Architecture: the evaluation layer now owns predictions_detail.csv
+train.py cannot import comparators.py (comparators imports train for the feature lists
+-- a cycle), so it could never produce an ensemble prediction without duplicating the
+definition. Moved the writer to `evaluate.write_prediction_details()`, which reaches the
+registry, so the shipped ensemble and its interval are defined in exactly one place.
+train.py stays the fidelity anchor and no longer writes the file.
+
+## Phase 13 — Player season view
+
+New GUI view: one player's whole season, weeks across the bottom, PPR points up the
+side, actual scores as points and the projection as a line with its q10-q90 band. Added
+as `gui/views/player_season.py` plus one line in `app.py`'s VIEWS -- the registry
+extension point working exactly as designed in Phase 7.
+
+`src/player_timeline.py` stitches two DIFFERENT machines and labels the seam:
+- PLAYED weeks come from the walk-forward harness -- genuine out-of-sample predictions,
+  the same ones every accuracy number here is computed from.
+- UNPLAYED weeks come from `upcoming.predict_weeks`, one fit covering all of them.
+
+### Why future weeks are an outlook, not a projection
+For any future week the lagged rolling features are IDENTICAL, because no games are
+played in between -- week 10's features are week 2's features. Only opponent, that
+defense's form and the market line differ. On top of that ~88% of later unplayed games
+have no spread/total posted (verified: 2026 weeks 2-3 have lines, weeks 4 and 10 are
+100% null). So one model fit serves every remaining week, and the view labels those
+weeks as a current-form outlook. They do still vary by opponent (Nacua: 19.5 vs DEN,
+21.7 vs PHI), so the line is not flat -- just not genuinely game-specific.
+
+### Two real bugs found by building this
+- **Cache skew made a week disappear.** `season_week_status` originally read played/
+  unplayed from the SCHEDULE, but the schedule cache and the weekly-stats cache refresh
+  independently. With schedules newer, week 2 was "played" with no player rows -- so it
+  was neither scored nor projected and silently vanished from the chart. Fixed by
+  deriving "played" from the player data, so a week we cannot score is projected
+  instead, which is visible.
+- **Schedules were fetched over the network on every run** (the only table not cached),
+  which made the live path depend on connectivity -- and it failed mid-build with a DNS
+  error. Now parquet-cached via `features_context.load_schedules_cached()`, with
+  "Refresh Data" refreshing it, since that table carries the current season's results
+  and newly posted lines.

@@ -9,6 +9,7 @@ No view code changes -- views discover methods via available_methods().
 """
 
 MAE_APPROX = "mae_approx"
+QUANTILE = "quantile"
 
 
 def _mae_approx_range(player_row, segment_mae=None, point_col="model_pred", **_):
@@ -34,15 +35,46 @@ def _mae_approx_range(player_row, segment_mae=None, point_col="model_pred", **_)
     return max(0.0, pred - band), pred + band
 
 
+def _quantile_range(player_row, **_):
+    """
+    The model's own 10th-90th percentile prediction for this player.
+
+    Unlike the MAE band, this is learned per player rather than per segment, so a
+    boom/bust deep threat gets a wider interval than a steady target hog with the
+    same projection. Returns (None, None) when the quantile columns are absent, so
+    a caller working with older prediction data degrades instead of breaking.
+    """
+    lo, hi = player_row.get("q10"), player_row.get("q90")
+    if lo is None or hi is None:
+        return None, None
+    try:
+        lo, hi = float(lo), float(hi)
+    except (TypeError, ValueError):
+        return None, None
+    if lo != lo or hi != hi:      # NaN check without importing pandas
+        return None, None
+    return max(0.0, lo), hi
+
+
+# Quantile first so it is the default where available -- it is a real interval,
+# whereas the MAE band is a flat approximation kept for comparison.
 _METHODS = {
+    QUANTILE: _quantile_range,
     MAE_APPROX: _mae_approx_range,
 }
 
 METHOD_LABELS = {
+    QUANTILE: "Quantile (10th-90th percentile)",
     MAE_APPROX: "Approximate (+/- historical MAE)",
 }
 
 METHOD_CAVEATS = {
+    QUANTILE: (
+        "Learned interval: the model's own 10th-90th percentile prediction for this "
+        "player, so it widens for volatile players rather than applying one flat band. "
+        "Targets 80% coverage; see LOG.md for the measured figure. Still a model "
+        "output, not a guarantee -- weekly fantasy scoring is mostly irreducible noise."
+    ),
     MAE_APPROX: (
         "Approximation, not a confidence interval. This is the point prediction "
         "plus/minus the model's average absolute error for this position and volume "

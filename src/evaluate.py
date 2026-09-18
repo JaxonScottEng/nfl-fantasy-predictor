@@ -15,12 +15,14 @@ those rows into metrics.
 
 Run from the project root -- the data cache path is relative.
 """
+import os
+
 import numpy as np
 import pandas as pd
 
 import config
 from build_features import build_full_feature_table
-from comparators import COMPARATORS, DEFAULT_COMPARATOR_IDS
+from comparators import COMPARATORS, DEFAULT_COMPARATOR_IDS, SHIPPED_COMPARATOR_ID
 from metrics import METRICS, DEFAULT_METRIC_IDS
 from pools import POOLS, DEFAULT_POOL_SIZE
 from validation import walk_forward_folds
@@ -170,6 +172,47 @@ def check_fidelity(verbose=True):
                   f"{'None' if actual is None else f'{actual:.3f}'}")
 
     return failures
+
+
+DETAIL_PATH = os.path.join("data", "processed", "predictions_detail.csv")
+DETAIL_COMPARATORS = ["baseline_last4", "xgb_model", SHIPPED_COMPARATOR_ID,
+                      "xgb_q10", "xgb_q50", "xgb_q90"]
+
+
+def write_prediction_details(seasons=None, path=DETAIL_PATH, feature_table=None):
+    """
+    Row-level predictions for the GUI, one column per comparator.
+
+    The evaluation layer owns this file rather than train.py, because it is the only
+    layer that can reach the comparator registry -- train.py cannot import it without
+    a cycle. That also means the shipped ensemble and its quantile interval are
+    defined in exactly one place instead of being reimplemented for the GUI.
+    """
+    rows = run_evaluation(seasons=seasons or [config.VALIDATION_SEASON], pool="all",
+                          comparator_ids=DETAIL_COMPARATORS,
+                          feature_table=feature_table, verbose=False)
+    if len(rows) == 0:
+        return rows
+
+    wide = rows.pivot_table(
+        index=["season", "week", "position", "player_id", "player_display_name", "actual"],
+        columns="comparator", values="pred",
+    ).reset_index()
+    wide = wide.rename(columns={
+        SHIPPED_COMPARATOR_ID: "ensemble_pred",
+        "baseline_last4": "baseline_pred",
+        "xgb_model": "model_pred",
+        "xgb_q10": "q10", "xgb_q50": "q50", "xgb_q90": "q90",
+    })
+
+    for name in ("baseline", "model", "ensemble"):
+        wide[f"{name}_error"] = (wide["actual"] - wide[f"{name}_pred"]).abs()
+    wide["model_advantage"] = wide["baseline_error"] - wide["model_error"]
+    wide["ensemble_advantage"] = wide["baseline_error"] - wide["ensemble_error"]
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    wide.to_csv(path, index=False)
+    return wide
 
 
 def regression_report():

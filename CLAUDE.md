@@ -37,9 +37,16 @@ to `config.ACTIVE_POSITIONS`, give it a feature list in `train.py`'s
 - `src/metrics.py` — accuracy metrics registry (MAE, RMSE, R², bias, Spearman,
   top-N hit rate, CoV of weekly MAE). `train.py` imports `mae`/`rmse` from here
 - `src/pools.py` — player-pool definitions; this is what makes results comparable
-- `src/comparators.py` — anything scoreable (baseline, model, hybrid), one per function
+- `src/comparators.py` — anything scoreable, one per function. Defines
+  `SHIPPED_COMPARATOR_ID`, the single source of truth for what users see
+- `src/model_quantile.py` — quantile regression: q50 optimizes MAE directly (the
+  metric we report), q10/q90 give a real per-player interval
 - `src/evaluate.py` — the harness: `run_evaluation()` → row-level predictions,
-  `summarize()` → metrics, `check_fidelity()` → proves it matches `train.py`
+  `summarize()` → metrics, `check_fidelity()` → proves it matches `train.py`,
+  `write_prediction_details()` → the CSV the GUI reads
+- `src/player_timeline.py` — a season week-by-week: walk-forward for played weeks,
+  form outlook for unplayed ones, with the boundary reported in the metadata
+- `gui/views/player_season.py` — one player's season, actual vs projected range
 - `src/upcoming.py` — predictions for a not-yet-played week (placeholder-row
   trick: reuses the existing lagged feature builders, so no leakage)
 - `src/error_analysis.py` — segment-level error breakdown
@@ -81,7 +88,7 @@ another. See `src/pools.py`.
 |---|---|---|
 | Baseline (last-4 avg) | 7.258 | 6.129 |
 | Model (XGBoost) | 6.806 | 5.746 |
-| Hybrid (segmented) | 6.821 | 5.784 |
+| **Ensemble (shipped)** | **6.759** | **5.758** |
 
 **Multi-season, 2021–2025, top-40 pool** (180 folds, 21,600 scored rows — the
 headline figure for any external claim):
@@ -89,8 +96,8 @@ headline figure for any external claim):
 | | WR MAE | RB MAE |
 |---|---|---|
 | Baseline | 7.047 | 6.464 |
-| Model | **6.514** | **6.073** |
-| Hybrid | 6.503 | 6.115 |
+| Model (XGBoost) | 6.514 | 6.073 |
+| **Ensemble (shipped)** | **6.474** | **6.029** |
 
 Note the single-season and multi-season numbers disagree in direction for WR
 (2023 got slightly worse while the 5-season average improved). Judge changes on the
@@ -102,14 +109,26 @@ Run with `python src/evaluate.py 2021 2022 2023 2024 2025`.
 
 Published best-in-class on the same pool convention: **WR 4.84–4.94, RB 5.06–5.20**
 (Fantasy Football Analytics, 11 seasons / 9 sources; FantasyPros recent). We are
-roughly **32% behind on WR and 17% behind on RB**. Do not describe this project as
+roughly **34% behind on WR and 19% behind on RB**. Do not describe this project as
 competitive with commercial projections until those gaps close.
 
-The hybrid is now obsolete. It existed because the model used to LOSE to the baseline
-on low-volume players; after the expected-points features landed, the model wins in
-both segments (WR low-volume +4.0%, RB +0.9%), so the baseline fallback only drags it
-down — on all rows the plain model beats the hybrid (WR 4.384 vs 4.506). Prefer
-`xgb_model`; the hybrid is kept only for continuity of comparison.
+### The shipped projection
+
+`comparators.SHIPPED_COMPARATOR_ID` = **`ensemble_xgb_ridge`** — the equal-weight mean
+of XGBoost and ridge. Everything user-facing reads that one id. Its q10/q90 interval
+comes from a separate quantile model and is measured, not assumed: **coverage 0.78 WR
+/ 0.79 RB against an 0.80 target**.
+
+A 3-way ensemble adding the quantile median measured BETTER on MAE (WR 6.427, RB
+5.973) and was deliberately rejected. A median sits below the mean on right-skewed
+scoring and skew grows with volume, so its bias lands on exactly the players that
+matter: about **−4.4 points on an elite WR** versus −0.84 on average. Re-adding it is
+one `register_ensemble()` call if that tradeoff is ever wanted.
+
+The hybrid is obsolete and no longer shipped. It existed because the model used to
+LOSE to the baseline on low-volume players; after the expected-points features landed
+the model wins in both segments, so its baseline fallback was pure drag. Still
+registered as a comparator so older comparisons stay reproducible.
 
 Context for what is achievable: best-in-class projections explain only 3–23% of weekly
 variance, and WR MAE ~4.8–4.9 is near the practical floor. Chasing a much lower number

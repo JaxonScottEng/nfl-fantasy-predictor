@@ -10,9 +10,9 @@ GRID = "#e1e0d9"
 AXIS = "#c3c2b7"
 MUTED = "#898781"
 
-POINT_COL = "model_pred"
+POINT_COL = "ensemble_pred"
 TABLE_COLS = ["player_display_name", "actual", "baseline_pred", "model_pred",
-              "baseline_error", "model_error"]
+              "ensemble_pred", "baseline_error", "ensemble_error"]
 
 
 def _calibration_chart(rows):
@@ -72,9 +72,10 @@ def render(position, week, data):
     )
 
     # Baseline shown next to every model result (CLAUDE.md hard rule).
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     c1.metric("Baseline MAE", f"{rows['baseline_error'].mean():.3f}")
     c2.metric("Model MAE", f"{rows['model_error'].mean():.3f}")
+    c3.metric("Ensemble MAE", f"{rows['ensemble_error'].mean():.3f}")
 
     st.altair_chart(_calibration_chart(rows), width='stretch')
     st.caption(
