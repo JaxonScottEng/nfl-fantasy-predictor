@@ -36,6 +36,11 @@ from build_features import build_full_feature_table  # noqa: E402
 RAW_CACHE = os.path.join(PROJECT_ROOT, "data", "raw", "weekly_stats.parquet")
 PREDICTIONS_CSV = os.path.join(PROJECT_ROOT, "data", "processed", "predictions_detail.csv")
 
+# data/ is not tracked, so a fresh clone has no results. This committed copy lets the
+# Past Results screen work straight away. Running evaluate.py writes the real file,
+# which takes precedence.
+SAMPLE_PREDICTIONS_CSV = os.path.join(PROJECT_ROOT, "docs", "sample_results.csv")
+
 
 def get_active_positions():
     """Positions come from config -- never hardcoded, so new ones just appear."""
@@ -50,13 +55,15 @@ def get_hybrid_threshold(position):
 
 @st.cache_data(show_spinner=False)
 def load_predictions():
-    """
-    train.py's walk-forward output (data/processed/predictions_detail.csv).
-    Reused as-is -- the GUI never re-derives past predictions.
-    """
-    if not os.path.exists(PREDICTIONS_CSV):
-        return pd.DataFrame()
-    return pd.read_csv(PREDICTIONS_CSV)
+    """Walk-forward results, freshly generated if present, otherwise the sample."""
+    for path in (PREDICTIONS_CSV, SAMPLE_PREDICTIONS_CSV):
+        if os.path.exists(path):
+            return pd.read_csv(path)
+    return pd.DataFrame()
+
+
+def using_sample_predictions():
+    return not os.path.exists(PREDICTIONS_CSV) and os.path.exists(SAMPLE_PREDICTIONS_CSV)
 
 
 def get_available_weeks(position):

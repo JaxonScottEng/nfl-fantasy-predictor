@@ -249,18 +249,16 @@ def _defense_form(season, as_of_week):
 
 def predict_weeks(position, season, weeks, include_quantiles=True):
     """
-    Project several UNPLAYED weeks in one pass. One row per (player, week) with
-    model_pred, ensemble_pred, baseline_pred and optionally q10/q50/q90.
+    Project several unplayed weeks in one pass. One row per player per week.
 
-    Why a single fit covers all of them: every week here is unplayed, so the
-    training data and each player's lagged features are identical across them.
-    Only the opponent, that defense's form and the market line change.
+    One model fit covers all of them. Every week here is unplayed, so the training
+    data and each player's lagged features are identical across them. Only the
+    opponent, that defence's form and the betting line change.
 
-    HONEST LIMITATION: beyond the next week this is a CURRENT-FORM OUTLOOK, not a
-    game-specific projection. Rolling features cannot advance until the intervening
-    games are played, and ~88% of later unplayed games have no spread/total posted,
-    so those inputs arrive as NaN. Expect a nearly flat line across future weeks,
-    varying only with opponent strength.
+    Beyond the next week this shows current form rather than a forecast. Rolling
+    features cannot advance until the games in between are played, and about 88% of
+    later games have no betting line posted, so those inputs arrive empty. Expect a
+    nearly flat line across future weeks, varying only with opponent strength.
     """
     from model_quantile import fit_quantile_model, predict_quantiles
     from sklearn.impute import SimpleImputer

@@ -72,14 +72,21 @@ checks that catch mistakes:
 ```bash
 python -m venv .venv && .venv/Scripts/activate
 pip install -r requirements.txt
+streamlit run app.py
+```
 
-python src/data_load.py      # download NFL data, about 25 MB, first run only
-python src/evaluate.py       # accuracy tables
-streamlit run app.py         # the app
+The app opens straight away. The Past Results screen works immediately, using a sample of
+results committed with the project.
+
+The other two screens need the NFL data, which is too large to include:
+
+```bash
+python src/data_load.py      # download the data, about 25 MB, once
+python src/evaluate.py       # regenerate the results yourself, a few minutes
 ```
 
 Run commands from the project folder. Training takes a few minutes because the model is
-refit once per week of the season.
+refit once for every week of the season.
 
 ```bash
 pytest              # 62 tests, about 11 seconds
