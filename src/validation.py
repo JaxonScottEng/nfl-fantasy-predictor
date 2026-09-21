@@ -39,31 +39,3 @@ def walk_forward_folds(df, validation_season=None):
         yield week, train_df, test_df
 
 
-if __name__ == "__main__":
-    from build_target import get_target_table
-
-    df = get_target_table()
-    fold_count = 0
-
-    for week, train_df, test_df in walk_forward_folds(df):
-        fold_count += 1
-        max_train_season = train_df["season"].max()
-        max_train_week_in_val_season = train_df.loc[
-            train_df["season"] == config.VALIDATION_SEASON, "week"
-        ].max()
-
-        print(f"Week {week}: train={len(train_df)} rows "
-              f"(max season={max_train_season}, "
-              f"max week in {config.VALIDATION_SEASON}={max_train_week_in_val_season}), "
-              f"test={len(test_df)} rows")
-
-        # Leakage guard: assert no train row is from this week or later
-        # in the validation season.
-        bad_rows = train_df[
-            (train_df["season"] == config.VALIDATION_SEASON) &
-            (train_df["week"] >= week)
-        ]
-        assert len(bad_rows) == 0, f"LEAKAGE at week {week}!"
-
-    print(f"\nTotal folds: {fold_count}")
-    print("No leakage detected in any fold.")

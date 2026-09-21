@@ -6,3 +6,4 @@ data/
 .DS_Store
 .pytest_cache/
 docs/presentation-kit.md
+.claude/skills/

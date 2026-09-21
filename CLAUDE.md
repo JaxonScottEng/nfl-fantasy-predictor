@@ -39,9 +39,9 @@ python src/evaluate.py [seasons...]            fidelity check and accuracy table
 python src/evaluate.py --regression            machine-readable numbers (hook uses this)
 python src/upcoming.py                         next week's projections
 streamlit run app.py                           the app
-pytest                                         62 tests, about 11 seconds
+pytest                                         61 tests, about 11 seconds
 pytest -m slow                                 accuracy check against real data
-python scripts/make_benchmark_chart.py         regenerate the README images
+python scripts/make_figures.py                 regenerate the README figures
 ```
 
 Run everything from the project root. Cache paths are relative, so a different working
@@ -127,7 +127,9 @@ If a change affects the locked-in results, update the Verification section above
 `EXPECTED_MAE` in the hook, and `FIDELITY_TARGETS` in `src/evaluate.py` together. They
 must agree.
 
-Keep the writing plain. The `no-ai-slop` skill in `.claude/skills/` lists what to avoid.
+Keep the writing plain: no fake-profound closing lines, no mid-sentence bold, no
+sentences telling the reader what to notice. The no-ai-slop skill
+(github.com/petergyang/no-ai-slop) lists the full set.
 
 ## Reference docs
 

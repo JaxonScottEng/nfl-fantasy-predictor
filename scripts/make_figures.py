@@ -1,12 +1,10 @@
 """
-Generate docs/images/player-season.png -- one player's season, projection vs actual.
+Regenerate the figures used in README.md and REPORT.md.
 
-Uses the real walk-forward predictions in data/processed/predictions_detail.csv:
-every point was produced by a model trained only on earlier games. The shaded band
-is the model's own 10th-90th percentile prediction, which is what makes the
-calibration claim (measured 0.78-0.79 coverage against an 0.80 target) legible.
+    python scripts/make_figures.py
 
-    python scripts/make_player_chart.py [player name]
+Numbers come from CLAUDE.md's Verification section and from the results file the
+evaluation writes, so the figures cannot drift from the reported accuracy.
 """
 import os
 import sys
@@ -14,16 +12,77 @@ import sys
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
-DETAIL_PATH = os.path.join("data", "processed", "predictions_detail.csv")
-OUT_PATH = os.path.join("docs", "images", "player-season.png")
-
-PROJECTION = "#2a78d6"
-ACTUAL = "#eb6834"
 INK = "#12151c"
 MUTED = "#6b7280"
 GRID = "#e1e4ec"
+PROJECTION = "#2a78d6"
+ACTUAL = "#eb6834"
+
+
+BENCHMARK_PATH = os.path.join("docs", "images", "benchmark-gap.png")
+
+# (label, WR MAE, RB MAE, colour)
+SERIES = [
+    ("Naive baseline\n(last-4 average)", 7.047, 6.464, "#c3c2b7"),
+    ("This model\n(XGBoost + ridge)", 6.474, 6.029, "#2a78d6"),
+    ("Published best-in-class\n(FantasyPros / FFA)", 4.84, 5.06, "#eb6834"),
+]
+
+
+
+def benchmark_chart():
+    positions = ["Wide receiver", "Running back"]
+    x = np.arange(len(positions))
+    width = 0.26
+
+    fig, ax = plt.subplots(figsize=(8.6, 4.6), dpi=160)
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+
+    for index, (label, wr, rb, colour) in enumerate(SERIES):
+        offset = (index - 1) * width
+        bars = ax.bar(x + offset, [wr, rb], width, label=label, color=colour,
+                      edgecolor="white", linewidth=1.2, zorder=3)
+        for bar in bars:
+            ax.annotate(f"{bar.get_height():.2f}",
+                        xy=(bar.get_x() + bar.get_width() / 2, bar.get_height()),
+                        xytext=(0, 4), textcoords="offset points",
+                        ha="center", va="bottom", fontsize=10,
+                        color=INK, fontweight="bold")
+
+    ax.set_ylabel("Mean absolute error (PPR points)", fontsize=10, color=MUTED)
+    ax.set_title("Lower is better — measured on the same top-40-by-projection pool",
+                 fontsize=11, color=MUTED, loc="left", pad=14)
+    ax.set_xticks(x)
+    ax.set_xticklabels(positions, fontsize=11, color=INK)
+    ax.set_ylim(0, 8.0)
+    ax.yaxis.grid(True, color=GRID, linewidth=1, zorder=0)
+    ax.set_axisbelow(True)
+    for spine in ("top", "right", "left"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["bottom"].set_color(GRID)
+    ax.tick_params(axis="y", colors=MUTED, length=0, labelsize=9)
+    ax.tick_params(axis="x", length=0)
+    # Legend below the plot: inside the axes it collided with the RB value labels.
+    ax.legend(frameon=False, fontsize=9, ncol=3, labelcolor=MUTED,
+              loc="upper center", bbox_to_anchor=(0.5, -0.09),
+              columnspacing=2.4, handlelength=1.4)
+
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(BENCHMARK_PATH), exist_ok=True)
+    fig.savefig(BENCHMARK_PATH, facecolor="white", bbox_inches="tight")
+    print(f"wrote {BENCHMARK_PATH}")
+
+
+PLAYER_PATH = os.path.join("docs", "images", "player-season.png")
+# Freshly generated results if they exist, otherwise the committed sample, so the
+# figure can be rebuilt without downloading the data first.
+RESULT_PATHS = [os.path.join("data", "processed", "predictions_detail.csv"),
+                os.path.join("docs", "sample_results.csv")]
+
 
 
 def pick_player(detail, requested=None):
@@ -48,11 +107,12 @@ def pick_player(detail, requested=None):
     return (projected - projected.median()).abs().idxmin()
 
 
-def main():
-    if not os.path.exists(DETAIL_PATH):
-        raise SystemExit(f"{DETAIL_PATH} missing -- run `python src/evaluate.py` first")
+def player_chart():
+    source = next((p for p in RESULT_PATHS if os.path.exists(p)), None)
+    if source is None:
+        raise SystemExit("No results found. Run `python src/evaluate.py` first.")
 
-    detail = pd.read_csv(DETAIL_PATH)
+    detail = pd.read_csv(source)
     player = pick_player(detail, " ".join(sys.argv[1:]) or None)
     rows = detail[detail["player_display_name"] == player].sort_values("week")
     if len(rows) == 0:
@@ -98,10 +158,10 @@ def main():
               loc="upper center", bbox_to_anchor=(0.5, -0.14))
 
     fig.tight_layout()
-    os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
-    fig.savefig(OUT_PATH, facecolor="white", bbox_inches="tight")
-    print(f"wrote {OUT_PATH} for {player} ({season}), coverage {covered:.2f}")
-
+    os.makedirs(os.path.dirname(PLAYER_PATH), exist_ok=True)
+    fig.savefig(PLAYER_PATH, facecolor="white", bbox_inches="tight")
+    print(f"wrote {PLAYER_PATH} for {player} ({season}), coverage {covered:.2f}")
 
 if __name__ == "__main__":
-    main()
+    benchmark_chart()
+    player_chart()

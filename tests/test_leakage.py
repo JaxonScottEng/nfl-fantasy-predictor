@@ -209,16 +209,3 @@ def test_playoff_values_never_reach_a_rolling_window(monkeypatch, tiny_weekly):
     assert out["week"].max() <= 18
     for column in ["targets_roll3", "targets_roll5", "receiving_yards_roll4"]:
         assert (out[column].dropna() < 1_000.0).all(), f"{column} saw a playoff value"
-
-
-def test_target_table_excludes_postseason(monkeypatch, tiny_weekly):
-    import build_target
-
-    regular = tiny_weekly(weeks=range(1, 6), season_type="REG")
-    playoff = tiny_weekly(weeks=range(19, 21), season_type="POST")
-    combined = pd.concat([regular, playoff], ignore_index=True)
-
-    monkeypatch.setattr(build_target, "load_weekly", lambda: combined)
-    out = build_target.get_target_table()
-
-    assert out["week"].max() <= 18

@@ -76,7 +76,7 @@ checks that catch mistakes:
 
 - An automatic check runs after every code change and stops work if the accuracy numbers
   move without explanation, including when they improve.
-- 62 tests cover the rules that keep the model honest, such as never letting a prediction
+- 61 tests cover the rules that keep the model honest, such as never letting a prediction
   see data from the week it is predicting.
 - Features that did not work were measured, written down, and removed.
 
@@ -95,7 +95,7 @@ is refit once for every week of the season.
 ## Tests
 
 ```bash
-pytest              # 62 tests, about 11 seconds
+pytest              # 61 tests, about 11 seconds
 pytest -m slow      # accuracy check against real data, a few minutes
 ```
 
