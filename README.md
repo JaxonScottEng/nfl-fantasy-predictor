@@ -3,6 +3,8 @@
 Predicts how many fantasy points an NFL wide receiver or running back will score in a
 given week. Written in Python, with a Streamlit app for viewing the results.
 
+To open the app, see [Running the app](#running-the-app). It takes three commands.
+
 ## Background
 
 Fantasy football players choose a lineup every week. To choose well you need an estimate
@@ -47,13 +49,24 @@ target of 80%.
 
 ![One player's season](docs/images/player-season.png)
 
-## The app
+## Running the app
+
+```bash
+python -m venv .venv
+.venv/Scripts/activate          # Windows. On Mac or Linux: source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Then open http://localhost:8501 in a browser.
 
 Three screens:
 
-- Past Results: predictions against actual scores for any week.
-- Upcoming Week: projections for the next unplayed week.
+- Past Results: predictions against actual scores for any week. Works immediately, using
+  a sample of results included with the project.
+- Upcoming Week: projections for the next unplayed week. Needs the NFL data, see below.
 - Player Season: one player's whole season, actual scores plotted against the projection.
+  Needs the NFL data.
 
 ## How it was built
 
@@ -67,26 +80,19 @@ checks that catch mistakes:
   see data from the week it is predicting.
 - Features that did not work were measured, written down, and removed.
 
-## Running it
+## Getting the full data
 
-```bash
-python -m venv .venv && .venv/Scripts/activate
-pip install -r requirements.txt
-streamlit run app.py
-```
-
-The app opens straight away. The Past Results screen works immediately, using a sample of
-results committed with the project.
-
-The other two screens need the NFL data, which is too large to include:
+The NFL data is too large to include, so two screens need it downloaded first.
 
 ```bash
 python src/data_load.py      # download the data, about 25 MB, once
 python src/evaluate.py       # regenerate the results yourself, a few minutes
 ```
 
-Run commands from the project folder. Training takes a few minutes because the model is
-refit once for every week of the season.
+Run every command from the project folder. Training takes a few minutes because the model
+is refit once for every week of the season.
+
+## Tests
 
 ```bash
 pytest              # 62 tests, about 11 seconds

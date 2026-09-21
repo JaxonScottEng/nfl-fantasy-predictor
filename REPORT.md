@@ -26,6 +26,8 @@ the first accuracy figure the project produced was wrong, and how that was found
 Data comes from nflverse, a free public source of NFL statistics. The project ran from
 September 10 to September 21, 2026.
 
+Appendix A lists the commands to run the app and reproduce every figure in this report.
+
 ## 2.0 Evolution of the Model
 
 ### 2.1 Summary Table
@@ -274,15 +276,26 @@ best.
 
 ## Appendix A: Running the Project
 
-```bash
-python -m venv .venv && .venv/Scripts/activate
-pip install -r requirements.txt
+### The app
 
-python src/data_load.py                            # download data, about 25 MB
+```bash
+python -m venv .venv
+.venv/Scripts/activate          # Windows. On Mac or Linux: source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+Then open http://localhost:8501 in a browser. The Past Results screen works straight away,
+using the sample of results in `docs/sample_results.csv`. The Upcoming Week and Player
+Season screens need the NFL data downloaded first.
+
+### Everything else
+
+```bash
+python src/data_load.py                            # download data, about 25 MB, once
 python src/evaluate.py                             # accuracy tables for one season
 python src/evaluate.py 2021 2022 2023 2024 2025    # the figures in Table 3
 python src/upcoming.py                             # next week's projections
-streamlit run app.py                               # the app
 
 pytest                                             # 62 tests, about 11 seconds
 pytest -m slow                                     # accuracy check against real data
