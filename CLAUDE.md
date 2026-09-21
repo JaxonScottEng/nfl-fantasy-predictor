@@ -10,7 +10,7 @@ to `config.ACTIVE_POSITIONS`, give it a feature list in `train.py`'s
 
 ## Stack
 
-- Language: Python 3.11+, virtualenv (`.venv`)
+- Language: Python 3.13, virtualenv (`.venv`)
 - Data: `nflreadpy` (returns Polars — convert to pandas at load boundary)
 - Modeling: pandas, scikit-learn, XGBoost
 - Package manager: pip (`requirements.txt`)
@@ -65,6 +65,11 @@ to `config.ACTIVE_POSITIONS`, give it a feature list in `train.py`'s
 - `python src/evaluate.py [seasons...]` — fidelity check + top-40 accuracy table
 - `python src/evaluate.py --regression` — fast machine-readable numbers (hook uses this)
 - `streamlit run app.py` — launch the local GUI
+- `pytest` — fast invariant suite (~11s, no data needed). Run this after any change
+  to features, validation, pools or the registries
+- `pytest -m slow` — fidelity gate against real data (minutes)
+- `python scripts/make_benchmark_chart.py` / `make_player_chart.py` — regenerate the
+  README images
 
 Run every command from the PROJECT ROOT. `data_load.CACHE_PATH` is relative, so a
 different cwd silently reads/writes a different cache.
@@ -183,6 +188,13 @@ to reflect the new state.
 
 ## Reference Docs
 
-- `LOG.md` — full phase-by-phase build history and findings
+- `README.md` — the front door: headline result, the honest benchmark, quickstart
+- `REPORT.md` — the technical writeup: method, validation protocol, full results,
+  every negative result, limitations
+- `LOG.md` — full phase-by-phase build history and findings. Note its preamble: MAE
+  numbers rise mid-file because the pool convention changed in Phase 8
+- `tests/` — the invariants. `test_features_lag.py` and `test_validation.py` are the
+  leakage guards; `test_fidelity_slow.py` pins CLAUDE.md, the hook and the harness
+  to the same numbers by importing the hook's `EXPECTED_MAE` rather than copying it
 - Project spec (Claude Project knowledge) — feature/model/benchmark
   registries, extension recipes

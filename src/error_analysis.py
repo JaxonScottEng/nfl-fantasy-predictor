@@ -1,6 +1,5 @@
 # error_analysis.py
 import pandas as pd
-import numpy as np
 
 detail = pd.read_csv("data/processed/predictions_detail.csv")
 

@@ -2,3 +2,7 @@
 __pycache__/
 data/
 *.parquet
+.env
+.DS_Store
+.pytest_cache/
+docs/presentation-kit.md

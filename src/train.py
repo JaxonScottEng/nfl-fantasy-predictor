@@ -1,24 +1,25 @@
 # train.py
 """
-Trains the model over walk-forward folds and compares to the baseline.
+Walk-forward training for the per-position point models.
 
-v2 adds a SEGMENTED (hybrid) prediction: use the XGBoost model for
-high-volume players (baseline_pred >= HYBRID_THRESHOLD) and fall back
-to the plain rolling-average baseline for low-volume players.
+This module defines the model spec -- FEATURE_COLS_BY_POSITION and XGB_PARAMS --
+which comparators.py imports so that evaluation can never fit something different
+from what training fits.
 
-Justification (from error analysis on the v1 model):
-  - High-volume players (baseline_pred >= 12): model beat baseline by 11.1% MAE
-  - Low-volume players (baseline_pred < 12):   model was 1.7% WORSE than baseline
-This is not post-hoc cherry-picking of the best number -- it's a modeling
-decision directly motivated by evidence that the model only adds value where
-there's enough usage signal to learn from. See LOG.md for the full analysis.
+One SEPARATE model per position in config.ACTIVE_POSITIONS. Positions are never
+pooled: usage stats mean different things by position (a WR's carries vs an RB's),
+and pooling would let one position's sample size and scoring distribution distort
+the other's fit. Each position gets its own feature list and its own folds.
 
-v3 trains one SEPARATE model per position in config.ACTIVE_POSITIONS.
-Positions are never pooled into a single model: usage stats mean different
-things by position (a WR's carries vs an RB's), and pooling would let one
-position's sample size and scoring distribution distort the other's fit.
-Each position gets its own feature list, its own folds, and its own
-baseline/model/hybrid comparison on its own rows.
+WHAT THIS IS NOT: the shipped projection. That is an ensemble defined in
+comparators.SHIPPED_COMPARATOR_ID, and the accuracy figures in CLAUDE.md come from
+evaluate.py on a declared player pool. Running this module prints ALL-ROWS numbers,
+which exist only as the fidelity anchor -- evaluate.check_fidelity() asserts that the
+harness reproduces them exactly. They are not an accuracy claim; see REPORT.md §6.1
+for why an unfiltered pool flatters MAE by roughly 30%.
+
+The `hybrid` still computed here is retired and no longer shipped. It is kept so the
+Phase 5-10 comparisons in LOG.md remain reproducible.
 """
 import numpy as np
 import pandas as pd

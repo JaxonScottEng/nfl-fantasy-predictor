@@ -155,8 +155,16 @@ FIDELITY_TARGETS = {
 }
 
 
+# Named explicitly rather than inherited from DEFAULT_COMPARATOR_IDS: this check
+# verifies the harness against train.py's three outputs, which include the hybrid.
+# When the default set changed to ship the ensemble, the hybrid dropped out of the
+# run and this check reported None for numbers train.py still produces.
+FIDELITY_COMPARATORS = ["baseline_last4", "xgb_model", "hybrid"]
+
+
 def check_fidelity(verbose=True):
-    rows = run_evaluation(pool="all", seasons=[config.VALIDATION_SEASON], verbose=False)
+    rows = run_evaluation(pool="all", seasons=[config.VALIDATION_SEASON],
+                          comparator_ids=FIDELITY_COMPARATORS, verbose=False)
     got = summarize(rows, metric_ids=["mae"], pool_only=False)
 
     failures = []
@@ -247,6 +255,25 @@ if __name__ == "__main__":
 
     seasons = [int(a) for a in sys.argv[1:] if a.isdigit()] or [config.VALIDATION_SEASON]
     print(f"Comparable pool (top 40 WR/RB by projection), seasons {seasons}:")
-    rows = run_evaluation(pool="top_n_by_projection", seasons=seasons, verbose=False)
-    print(metric_table(rows, n=12).round(3).to_string())
+    rows = run_evaluation(pool="top_n_by_projection", seasons=seasons,
+                          comparator_ids=DETAIL_COMPARATORS, verbose=False)
+    point_rows = rows[~rows["comparator"].isin(["xgb_q10", "xgb_q90"])]
+    print(metric_table(point_rows, n=12).round(3).to_string())
     print("\nPublished reference (top-40 pool): WR 4.84-4.94 MAE, RB 5.06-5.20.")
+
+    # Interval calibration, so the coverage figures quoted in CLAUDE.md and REPORT.md
+    # are reproducible by running something rather than taken on trust.
+    from model_quantile import interval_coverage, pinball_loss
+
+    wide = rows[rows["comparator"].isin(["xgb_q10", "xgb_q50", "xgb_q90"])].pivot_table(
+        index=["season", "week", "position", "player_id", "actual", "in_pool"],
+        columns="comparator", values="pred",
+    ).reset_index()
+    print("\nInterval calibration (q10-q90, target coverage 0.80):")
+    for position in sorted(wide["position"].unique()):
+        pooled = wide[(wide["position"] == position) & wide["in_pool"]]
+        coverage = interval_coverage(pooled["actual"], pooled["xgb_q10"], pooled["xgb_q90"])
+        width = float((pooled["xgb_q90"] - pooled["xgb_q10"]).mean())
+        pinball = pinball_loss(pooled["actual"], pooled["xgb_q50"], 0.5)
+        print(f"  {position}: coverage {coverage:.3f}  mean width {width:5.2f}  "
+              f"pinball(0.5) {pinball:.3f}  n={len(pooled):,}")

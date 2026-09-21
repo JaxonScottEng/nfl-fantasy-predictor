@@ -5,7 +5,6 @@ Lag is applied the same way as the Phase 1 baseline: shift(1) before
 rolling, grouped by player_id, so the current week is never included.
 """
 import numpy as np
-import pandas as pd
 import config
 from data_load import load_weekly, filter_regular_season
 

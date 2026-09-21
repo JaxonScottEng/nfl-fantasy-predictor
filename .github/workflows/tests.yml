@@ -1,0 +1,30 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  fast-tier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      # Fast tier only. The slow tier needs the nflverse cache, which is
+      # gitignored by design -- CI would have to download ~25 MB and run 180
+      # walk-forward folds to execute it. Those gates run locally via
+      # `pytest -m slow` and through the PostToolUse regression hook.
+      - name: Run tests
+        run: pytest

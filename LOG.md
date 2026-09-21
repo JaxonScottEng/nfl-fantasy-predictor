@@ -1,4 +1,24 @@
-Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, learned to use git and commits.
+# Build log
+
+Append-only, phase by phase, including the experiments that failed.
+
+**Read this first — the MAE numbers get WORSE as you scroll, and that is the point.**
+Phases 1–7 quote errors of roughly 4.5–4.9. Phases 8 onward quote 5.7–7.3. The model did
+not regress. In Phase 8 the *measurement* changed: the project switched from scoring every
+rostered player to scoring only the top 40 by projection each week, which is the convention
+published accuracy studies use. The old numbers were flattered by ~30% because deep-bench
+players score near zero and are trivially predictable. Every figure from Phase 8 onward is
+comparable to an outside reference; nothing before it was.
+
+See [REPORT.md](REPORT.md) for the finished analysis, or read straight through for how it
+actually went.
+
+---
+
+## Phase 0 — Setup
+
+2026-09-10 — Virtual environment, dependency install, initial data pull, repository
+initialised.
 
 ## Phase 1 — Baseline
 - Cached WR weekly data, 2016–2024 (22,097 rows)
@@ -27,7 +47,7 @@ Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, l
 - Remaining nulls: 132 rows in def_points_allowed_roll4, all week 1 (expected
   cold-start — no prior game to roll from)
 
-  ## Phase 4 — First Model
+## Phase 4 — First Model
 - XGBoost, per-fold retraining, walk-forward over 2023 regular season (weeks 1-18, playoffs excluded)
 - Baseline (last-4 avg): MAE 4.677, RMSE 6.579
 - Model (XGBoost, default-ish params): MAE 4.543, RMSE 6.263
@@ -37,7 +57,7 @@ Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, l
 - This is the CORE MILESTONE result — first honest model-beats-baseline comparison.
   Next: error analysis (Phase 5) before further tuning/features.
 
-  ## Phase 5 — Iteration 1: Segmented Model
+## Phase 5 — Iteration 1: Segmented Model
 - Error analysis found model beats baseline by 11.1% MAE on high-volume players
   (baseline_pred >= 12, n=530) but is 1.7% WORSE than baseline on low-volume
   players (n=1899) -- aggregate 2.9% masked this split
@@ -48,7 +68,7 @@ Phase 0: 12:54 2026-09-10 - Created virtual environment, downloaded all files, l
   variance of large misses does not. Report both, don't cherry-pick MAE alone.
 - Feature importances unchanged: baseline_last4 + targets_roll5 + receptions_roll5
   = ~63% of model's decisions -- usage dominates, consistent with domain expectation
-  ## Phase 5 — Iteration 2 (negative result)
+## Phase 5 — Iteration 2 (negative result)
 - Hypothesis: a games_played_this_season feature would help the model recognize
   thin-sample players and rely less on noisy rolling stats for them.
 - Result: no meaningful change (Model MAE 4.543->4.545, Hybrid 4.492->4.491).
@@ -513,3 +533,66 @@ weeks as a current-form outlook. They do still vary by opponent (Nacua: 19.5 vs 
   error. Now parquet-cached via `features_context.load_schedules_cached()`, with
   "Refresh Data" refreshing it, since that table carries the current season's results
   and newly posted lines.
+
+
+## Phase 14 — Finalization for portfolio presentation
+
+Packaging work, not modelling. The engineering was portfolio-grade; the presentation was
+at roughly 20% — README was a 0-byte file, no tests, no licence, no images anywhere.
+
+### Tests (new)
+`tests/` with 62 fast invariant tests running in ~11s, plus a slow real-data tier.
+`pyproject.toml` puts `src/` on the pytest path, so the flat-import layout did not have to
+be restructured into a package (which would have touched every file under the hook).
+
+The fast tier is deliberately structural, not numeric: leakage properties, feature-lag
+correctness, pool definitions, the join guard, metric sign conventions, registry
+resolution, and an end-to-end harness run on a synthetic feature table. Numeric model
+outputs are the hook's job; duplicating them here would produce a brittle suite.
+
+**The suite immediately paid for itself.** `test_fidelity_slow.py` caught a real regression
+that had been live since Phase 12: when `DEFAULT_COMPARATOR_IDS` changed to ship the
+ensemble, `check_fidelity()` stopped requesting `hybrid` and reported `None` for numbers
+train.py still produces. The hook never caught it because the hook runs
+`evaluate.py --regression`, which does not touch that path. Fixed by naming
+`FIDELITY_COMPARATORS` explicitly rather than inheriting a default that had moved.
+
+Lesson: a guard only covers the path it actually executes. The hook had been treated as
+covering "the numbers", when it covered one entry point into them.
+
+### Visuals
+`scripts/make_benchmark_chart.py` and `scripts/make_player_chart.py` (outside `src/`, so
+no hook cost) generate the two committed images from real data.
+
+A selection-bias trap worth recording: the player chart originally picked the
+highest-scoring WR, which is by construction the player a calibrated interval most often
+misses high. It showed 59% coverage against an 80% target and made calibration look far
+worse than it measures. Selecting on PROJECTED volume instead -- a pre-outcome variable --
+gives a representative starter and the honest 84% figure. Choosing an example on the
+outcome you are illustrating is the same error as choosing a threshold on the test set.
+
+### Documentation
+- `README.md` written from nothing. Leads with the AI-assisted engineering story (four
+  evidence-first artifacts, each naming a file or phase) with the honest benchmark stated
+  in the first three lines so it cannot read as buried.
+- `REPORT.md`: objective, data, method, validation protocol, full results, every negative
+  result, the second-best-MAE decision, calibration, limitations, what I'd do differently.
+- `LICENSE` (MIT). LOG.md: three `## Phase` headings were indented two spaces and rendering
+  as body text; added a preamble explaining that MAE RISES mid-file because the pool
+  convention changed in Phase 8, not because the model regressed.
+- `requirements.txt` trimmed from a 61-package pip freeze to 12 direct deps;
+  the full resolved tree kept as `requirements-lock.txt`.
+
+### Cleanup
+Deleted `src/temp.py` (dead scratch). Removed four imports after verifying the alias was
+genuinely unreferenced. Rewrote `train.py`'s module docstring, which still presented the
+retired hybrid as the architecture and would have misled anyone opening it first. Added an
+interval-calibration print to `evaluate.py` so the coverage figures quoted in CLAUDE.md and
+REPORT.md are reproducible by running something rather than taken on trust.
+
+### Not done deliberately
+No `src/` package refactor to fix the working-directory coupling -- it touches every file
+under the hook for no reviewer-visible gain, and is documented as a limitation instead. No
+CI badge, because the repo is local and a badge for a workflow that has never run is noise.
+Streamlit screenshots still outstanding; the two generated charts carry the README without
+them.

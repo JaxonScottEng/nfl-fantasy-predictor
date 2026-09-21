@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+# src/ uses flat imports (`import config`), so it goes on the path directly rather
+# than being restructured into a package -- that would touch every file under the
+# regression hook for no gain.
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+markers = [
+    "slow: takes minutes; excluded by default (run with -m slow)",
+    "needs_data: requires the nflverse cache in data/, so never runs in CI",
+]
+# The fast tier is the default: structural and invariant tests only, no real data.
+addopts = "-m 'not slow' -q"

@@ -1,5 +1,4 @@
 # build_target.py
-import pandas as pd
 import config
 from data_load import load_weekly, filter_regular_season
 

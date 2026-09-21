@@ -61,8 +61,10 @@ def render(position, week, data):
     rows = data_access.get_week_predictions(position, week)
     if len(rows) == 0:
         st.info(
-            "No stored predictions for this position/week. Use **Re-run Training** "
-            "in the sidebar to regenerate `data/processed/predictions_detail.csv`."
+            "No stored predictions yet. `data/` is not tracked in git, so a fresh "
+            "clone starts empty — run `python src/evaluate.py` from the project root "
+            "(or use **Re-run Training** in the sidebar) to generate "
+            "`data/processed/predictions_detail.csv`. It takes a few minutes."
         )
         return
 

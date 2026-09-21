@@ -1,5 +1,4 @@
 # baselines.py
-import pandas as pd
 import config
 from build_target import get_target_table
 
