@@ -168,7 +168,6 @@ def run_position(df, position, save_details=False):
         "hybrid_preds": hybrid_preds,
         "baseline_preds": baseline_preds,
         "actuals": actuals,
-        "detail_rows": detail_rows,
     }
 
 
@@ -178,11 +177,8 @@ def run_walk_forward_training(save_details=False):
               (df["week"] > config.MAX_VALIDATION_WEEK))]
 
     results = {}
-    all_detail_rows = []
     for position in config.ACTIVE_POSITIONS:
-        result = run_position(df, position, save_details=save_details)
-        results[position] = result
-        all_detail_rows.extend(result["detail_rows"])
+        results[position] = run_position(df, position, save_details=save_details)
 
     # predictions_detail.csv is written by evaluate.write_prediction_details(), not
     # here: only the evaluation layer can reach the comparator registry (train.py

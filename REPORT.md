@@ -144,11 +144,14 @@ Accuracy depends on which players are included. A team roster carries around 140
 per week across the league, but most are bench players who score close to zero. They are
 easy to predict, so including them makes any model look accurate.
 
-The project reported 4.49 MAE for several weeks. Published accuracy studies score only the
-top 40 receivers per week. Measured that way, the same model scored 6.47. The model had not
-changed. The measurement had been wrong.
+I found this partway through the project, which had been reporting 4.49 MAE for several
+weeks. Published accuracy studies score only the top 40 receivers per week, and measured
+that way the same model scored 6.47. Nothing about the model had changed, only the group
+of players being counted, and including the other hundred had been lowering the reported
+error by about 30%.
 
-Every figure in this report uses the top 40 per position per week.
+I kept the worse figure, because it is the only one that can be compared to an outside
+reference. Every number in this report uses the top 40 per position per week.
 
 ### 3.2 Expected points
 
@@ -238,8 +241,10 @@ from 6.578 to 6.514. Eighteen weeks is too small a sample to judge a change on.
 
 ## 5.0 How the Project Was Built
 
-The code was written with Claude Code. The work that mattered was setting up checks that
-catch mistakes, because a model that is quietly wrong still produces confident numbers.
+The code was written with Claude Code. My work was deciding what the system had to prove
+about itself and building the checks that prove it, because a model that is quietly wrong
+still produces confident numbers. The measurement error in section 3.1 is the clearest
+example: the code was doing exactly what it was told, and what it was told was wrong.
 
 **An automatic check on every change.** A script runs after any edit to the model code. It
 re-runs the accuracy measurement, compares against six fixed numbers, and stops work if any

@@ -36,9 +36,10 @@ Any accuracy number depends on which players you count. Scoring every receiver o
 includes around 100 bench players a week who score close to zero and are easy to predict.
 That drags the average error down by about 30%.
 
-This project reported 4.49 MAE for several weeks before the measuring tools were built.
-The same model scored 6.47 once it was measured on the top 40 receivers per week, which is
-the group professional accuracy studies use.
+I found this partway through the project, which had been reporting 4.49 MAE for weeks. I
+was scoring every receiver on a roster rather than the top 40 that professional accuracy
+studies use. The same model scored 6.47 once measured that way. I kept the worse number,
+because it is the only one that can be compared to anything.
 
 ## Prediction ranges
 
@@ -71,8 +72,8 @@ Three screens:
 ## How it was built
 
 The code was written with Claude Code, an AI coding tool. Full detail is in
-[REPORT.md](REPORT.md) section 5. The short version is that most of the effort went into
-checks that catch mistakes:
+[REPORT.md](REPORT.md) section 5. Most of my own effort went into the checks that catch
+mistakes, including the measurement error above:
 
 - An automatic check runs after every code change and stops work if the accuracy numbers
   move without explanation, including when they improve.

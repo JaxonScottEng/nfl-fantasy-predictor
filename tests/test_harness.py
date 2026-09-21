@@ -144,3 +144,29 @@ def test_missing_keys_become_nan_rather_than_dropping_rows(left):
 
     assert len(out) == len(left)
     assert out["extra"].isna().sum() == 2
+
+
+# --- train.py entry point ---
+
+def test_run_position_returns_predictions(synthetic_feature_table):
+    """
+    Guards train.py's own entry point. It broke once and nothing noticed: the hook
+    runs evaluate.py, the other tests go through comparators, and check_fidelity
+    recomputes train.py's numbers rather than running it.
+    """
+    import config
+    from train import run_position
+
+    # run_position folds on config.VALIDATION_SEASON, so the frame has to contain it.
+    table = synthetic_feature_table(
+        positions=("WR",),
+        seasons=(config.VALIDATION_SEASON - 1, config.VALIDATION_SEASON),
+        weeks=range(1, 5), n_players=12,
+    )
+
+    result = run_position(table, "WR", save_details=False)
+
+    assert set(result) == {"position", "model_preds", "hybrid_preds",
+                           "baseline_preds", "actuals"}
+    assert len(result["model_preds"]) == len(result["actuals"]) > 0
+    assert len(result["hybrid_preds"]) == len(result["actuals"])
