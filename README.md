@@ -98,7 +98,3 @@ pytest -m slow      # accuracy check against real data, a few minutes
 
 [REPORT.md](REPORT.md) covers the method, the results in full, and the things that did not
 work.
-
-## License
-
-MIT. See [LICENSE](LICENSE).
