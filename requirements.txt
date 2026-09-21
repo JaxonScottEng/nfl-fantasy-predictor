@@ -1,16 +1,13 @@
-# Direct dependencies. Exact versions of the full resolved tree, including
-# transitive packages, are pinned in requirements-lock.txt.
-nflreadpy>=0.1.5
-pandas>=2.2
-numpy>=1.26
-polars>=1.0
-pyarrow>=16.0
-scikit-learn>=1.5
-xgboost>=2.1
-scipy>=1.13
-streamlit>=1.40
-altair>=5.4
-matplotlib>=3.9
-
-# Development
-pytest>=8.0
+# Direct dependencies, pinned to the versions this was built and tested with.
+altair==6.3.0
+matplotlib==3.11.1
+nflreadpy==0.1.5
+numpy==2.5.3
+pandas==3.0.5
+polars==1.44.2
+pyarrow==25.0.1
+pytest==9.1.1
+scikit-learn==1.9.1
+scipy==1.18.1
+streamlit==1.64.0
+xgboost==3.4.1

@@ -1,23 +1,12 @@
 # model_quantile.py
 """
-Quantile regression: predict a distribution instead of a single number.
+Quantile regression: predict a range instead of a single number.
 
-Two separate reasons this matters, and the first is easy to miss:
+Two uses. Training at alpha=0.5 optimizes MAE directly, because MAE is minimized by
+the median while the default objective targets the mean. And q10/q90 give a range
+learned per player, so it widens for unpredictable players.
 
-1. OBJECTIVE ALIGNMENT. Our headline metric is MAE, which is minimized by the
-   conditional MEDIAN. The default `reg:squarederror` objective optimizes the
-   conditional MEAN. Training at alpha=0.5 therefore optimizes the thing we
-   actually report, so q50 is expected to beat the squared-error model on MAE
-   even before anyone looks at intervals.
-
-2. REAL INTERVALS. The GUI currently shows "prediction +/- the model's historical
-   MAE", which is a flat band with no coverage guarantee and no sensitivity to an
-   individual player. q10/q90 are learned per player from his own features, so a
-   boom/bust deep threat gets a wider band than a steady target hog.
-
-XGBoost fits all requested quantiles in ONE model (verified: predict() returns an
-(n, len(alphas)) array with q10 <= q50 <= q90 already monotonic), so the extra
-quantiles cost nothing beyond the single fit.
+XGBoost fits all three quantiles in one model and returns them already ordered.
 """
 import numpy as np
 import xgboost as xgb

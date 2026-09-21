@@ -1,16 +1,15 @@
 # comparators.py
 """
-Things we can compare against each other, as a registry.
+The methods being compared, as a registry.
 
-A comparator turns one walk-forward fold into predictions for that fold's test
-rows. Every comparator is scored on the IDENTICAL row set, which is how
-CLAUDE.md's "baseline reported next to every model result, same rows" rule is
-enforced at the evaluation layer.
+A comparator turns one walk-forward fold into predictions for that fold's rows.
+Every comparator is scored on the same rows, so the baseline is always measured
+against the model on identical data.
 
-Adding a competitor = write a function, decorate it. No caller edits.
+Adding one means writing a function and decorating it.
 
-`cache` is a per-fold dict supplied by the harness. The hybrid needs the model's
-predictions, so without it evaluating both would fit XGBoost twice per fold.
+`cache` is a per-fold dict from the harness, so an ensemble containing xgb_model
+does not refit it.
 """
 import numpy as np
 import xgboost as xgb
@@ -168,16 +167,12 @@ register_ensemble(
            "deliberately excluded -- see below.",
 )
 
-# THE SHIPPED PROJECTION. Everything user-facing reads this one id.
+# The shipped projection. Everything user-facing reads this id.
 #
-# Averaging only the mean-optimal models is a deliberate choice against the raw MAE
-# leader. Adding xgb_q50 measured BETTER on MAE (WR 6.427 vs 6.474, RB 5.973 vs
-# 6.029) but its bias is structural, not tunable: a median sits below the mean on a
-# right-skewed distribution, and skew grows with volume, so the error concentrates on
-# exactly the players that matter. Measured -0.84 on average but about -4.4 on an
-# elite WR, which would read visibly wrong beside any commercial projection. The
-# 3-way and 4-way variants are in git history at the Phase 12 commit; re-adding one
-# is a single register_ensemble() call.
+# Adding xgb_q50 scored better on MAE (WR 6.427 vs 6.474) but was rejected. A median
+# sits below the mean on skewed scores, and the skew grows with volume, so the error
+# lands on the best players: about -4.4 points for an elite receiver against -0.84 on
+# average. See REPORT.md section 3.3.
 SHIPPED_COMPARATOR_ID = "ensemble_xgb_ridge"
 
 DEFAULT_COMPARATOR_IDS = ["baseline_last4", "xgb_model", SHIPPED_COMPARATOR_ID]

@@ -72,7 +72,7 @@ METHOD_CAVEATS = {
     QUANTILE: (
         "Learned interval: the model's own 10th-90th percentile prediction for this "
         "player, so it widens for volatile players rather than applying one flat band. "
-        "Targets 80% coverage; see LOG.md for the measured figure. Still a model "
+        "Measured coverage is 78% for WR and 79% for RB. Still a model "
         "output, not a guarantee -- weekly fantasy scoring is mostly irreducible noise."
     ),
     MAE_APPROX: (

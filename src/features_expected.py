@@ -1,19 +1,14 @@
 # features_expected.py
 """
-Expected fantasy points from nflverse's ffopportunity model -- what a player's
-opportunities were WORTH, regardless of what he actually scored.
+Expected fantasy points from nflverse: what a player's opportunities were worth,
+rather than what he scored.
 
-Why this matters: a receiver who drew 11 targets and 140 air yards but caught two
-balls for 18 points had a good week's usage and a bad week's luck. Actual points
-say "18"; expected points say the role is worth more. Expected production is the
-more stable signal, and touchdown expectation in particular is far less noisy than
-actual touchdowns -- which is the single largest source of irreducible weekly
-variance.
+A receiver who drew 11 targets and 140 air yards had a good week of opportunity even
+if he caught two balls. Expected points are more stable week to week than actual
+points, because touchdowns are close to random in the short term.
 
-IMPORTANT: expected points for week W are derived from week W's plays, so only
-LAGGED rolling values appear here. A same-week expected value would be an oracle
-with access to the outcome's own inputs, not a projection -- so it is deliberately
-not produced at all, rather than produced and guarded against misuse.
+Only lagged values are produced. Expected points for week W come from week W's
+plays, so a same-week value would leak the outcome.
 """
 import nflreadpy as nfl
 import numpy as np

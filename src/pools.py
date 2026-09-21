@@ -1,16 +1,13 @@
 # pools.py
 """
-Player-pool definitions -- which rows of a week get scored.
+Which players get scored.
 
-This is the whole comparability story. Published accuracy studies do NOT
-evaluate every player: Fantasy Football Analytics uses the top 40 WR/RB and top
-20 QB/TE *by projected points*, and FantasyPros uses the union of top-N-by-rank
-and top-N-by-actual. Scoring all ~140 WRs in a week instead makes MAE look far
-better than it is, because deep-bench players score near zero and are trivial to
-predict. A number produced over one pool cannot be compared to a number produced
-over another.
+Accuracy depends on the group. Scoring every receiver on a roster includes around
+100 bench players a week who score near zero and are easy to predict, which drags
+the average error down by about 30%. Published studies score the top 40 per position
+per week.
 
-Each pool takes one week's test frame and returns the index of rows to score.
+Each pool takes one week of test rows and returns the rows to score.
 """
 from registry import Registry
 

@@ -1,21 +1,11 @@
 # player_timeline.py
 """
-One position's whole season as a week-by-week timeline: what was projected, the
-interval around it, and what actually happened.
+One position's season week by week: what was projected, the range around it, and
+what actually happened.
 
-Two different machines produce the two halves, and they are not interchangeable:
-
-  PLAYED weeks come from the walk-forward harness -- each week predicted by a model
-  trained only on earlier games. These are honest out-of-sample projections, the same
-  ones every accuracy number in CLAUDE.md is computed from.
-
-  UNPLAYED weeks come from upcoming.predict_weeks -- one model trained on everything
-  completed so far. The next week is a genuine projection; weeks beyond it are a
-  current-form outlook, because rolling features cannot advance until the intervening
-  games are played and most later games have no betting line posted yet.
-
-The boundary between them is reported in the metadata so the GUI can mark it rather
-than presenting one continuous line of equal confidence.
+Played weeks come from the walk-forward evaluation, so each prediction used only
+earlier games. Unplayed weeks come from upcoming.predict_weeks. The boundary between
+them is reported in the metadata so the app can mark it.
 """
 import numpy as np
 import pandas as pd

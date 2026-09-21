@@ -1,289 +1,316 @@
-# Technical report
+# NFL Fantasy Points Predictor
 
-A weekly fantasy-football points projection system for NFL wide receivers and running
-backs, built to a measurement standard rather than to a leaderboard. This report assumes
-you have read the [README](README.md); it does not re-introduce the project.
+## Project Report
+
+September 2026
+
+Jaxon Scott
 
 ---
 
-## 1. Objective and success criterion
+## 1.0 Introduction
 
-The goal was never "build a model that predicts fantasy points" — that is a two-hour
-exercise. It was to build a system whose accuracy claim survives contact with an outside
-reference.
+This document describes a system that predicts weekly fantasy football points for NFL wide
+receivers and running backs. It covers six versions, from a simple rolling average to a
+model that combines two algorithms and reports a prediction range.
 
-That distinction drove the success criterion: **mean absolute error, in PPR points, on a
-declared player pool, compared against published commercial accuracy figures.** Every part
-of that sentence is load-bearing:
+The project had two goals: to gain practical machine learning experience, and to learn to
+direct an AI coding assistant on work where mistakes are easy to make and hard to notice.
+Most of the code was written with Claude Code and reviewed manually. Section 5.0 covers
+that process.
 
-- **MAE** because lineup and DFS decisions care about points, and because it is the metric
-  published accuracy studies report.
-- **On a declared pool** because MAE is meaningless without one. See §6.1 — this is the
-  single most important finding in the project.
-- **Against published figures** because "beats my own baseline" is a claim about the
-  baseline, not about the model.
+The measured result is that the model is more accurate than a simple average, and less
+accurate than the professional services it was compared against. Section 3.1 explains why
+the first accuracy figure the project produced was wrong, and how that was found.
 
-Secondary criteria: calibrated prediction intervals (measured coverage, not asserted), and
-rank correlation within week, since start/sit is an ordering problem.
+Data comes from nflverse, a free public source of NFL statistics. The project ran from
+September 10 to September 21, 2026.
 
-## 2. Data
+## 2.0 Evolution of the Model
 
-| | |
-|---|---|
-| Source | [nflverse](https://github.com/nflverse) via `nflreadpy` |
-| Seasons | 2016–2026 (2026 partial) |
-| Grain | one row per player per game |
-| Raw rows | 183,373 |
-| Modelled rows | 38,734 (WR + RB, regular season only) |
-| Scored rows | 21,600 (top-40 pool, 2021–2025) |
+### 2.1 Summary Table
 
-Six tables are joined: weekly player stats, schedules with betting lines, opponent defense
-aggregates, snap counts, nflverse's expected-points model (`ff_opportunity`), and injury
-reports (later removed — §6.2). All are cached to local parquet; only an explicit refresh
-re-downloads.
+| Version | Key features | Main issues |
+|---|---|---|
+| v1 Baseline | Average of a player's last 4 games | No model, only a reference point |
+| v2 First model | XGBoost, rolling usage and efficiency features, betting lines | Beat the baseline only for high-volume players |
+| v3 Two positions | Running backs added, separate model per position | Shared defence feature mixed the positions together |
+| v4 Measurement | Evaluation tools, standard player pool, multi-season testing | Revealed that all earlier accuracy figures were overstated |
+| v5 Opportunity features | Expected points, snap share, target share | Injury features added and removed, no effect |
+| v6 Ensemble and ranges | XGBoost plus ridge regression, prediction ranges | Payload of accuracy gain is small, gap to professionals remains |
 
-Two data traps worth recording:
+Table 1: Summary of the six versions.
 
-- **Team codes are not stable across seasons.** Franchise relocations (OAK→LV, SD→LAC,
-  STL→LA) silently broke 344 joins before being normalised in `features_context.py`.
-- **Snap counts carry no `gsis_id`**, only a Pro-Football-Reference id, so they cannot be
-  joined to player stats directly. They are bridged through weekly rosters, which carry
-  both (92% match). Joining on player *name* would have been easy and wrong — names are
-  not unique and change spelling.
+### 2.2 Detailed Notes
 
-## 3. Method
+**v1 Baseline**
 
-**One model per position, never pooled.** A WR's carries and an RB's carries mean different
-things, and pooling lets one position's sample size distort the other's fit. WR uses 64
-features, RB 67, with separate feature lists in `train.py`.
+Intent: Establish a number to beat.
 
-**Feature families** (all rolling, all lagged, windows of 3/4/5 games):
+Key choices
+- Predict each player at the average of his last four games.
+- Verified by hand against one player's week 9 score.
 
-| Family | Examples |
-|---|---|
-| Usage | targets, receptions, carries, air yards, touches |
-| Production | receiving/rushing yards, TDs, first downs, YAC |
-| Opportunity share | target share, air-yards share — team-normalised |
-| Efficiency | yards per target, yards per carry, receiving/rushing EPA |
-| Expected production | nflverse expected fantasy points, expected receptions, expected TDs |
-| Snap share | offensive snap percentage |
-| Opponent | points allowed to that position, per defense, per position |
-| Market | spread, total, and the derived implied team total |
+Issues observed
+- A rolling average ignores the opponent, injuries, and any change in a player's role.
 
-**Shipped model:** an equal-weight mean of XGBoost and ridge regression
-(`comparators.SHIPPED_COMPARATOR_ID`). A separate quantile model
-(`objective="reg:quantileerror"`, α = 0.1/0.5/0.9) supplies the prediction interval.
+**v2 First model**
 
-The single strongest feature is nflverse's **expected fantasy points**:
-`total_fantasy_points_exp_roll5` alone accounts for **40.8%** of WR feature importance, and
-the expected/opportunity block accounts for 79.2% (WR) and 66.0% (RB). It works because it
-measures what a player's opportunities were *worth* rather than what he happened to score
-— touchdown incidence is the noisiest component of weekly fantasy scoring.
+Intent: Beat the rolling average using machine learning.
 
-## 4. Validation protocol
+Key changes
+- XGBoost, retrained once for every week of the season.
+- Rolling features for targets, catches, carries, yards and touchdowns.
+- Opponent strength and betting lines added.
 
-This is the part of the project I would defend hardest.
+What worked
+- More accurate than the baseline for high-volume players.
 
-1. **Walk-forward only.** For each week W of a season, train on every completed game
-   strictly before W and predict W. One model fit per fold, 180 folds across 2021–2025. No
-   random splits anywhere — a shuffled split on time-series sports data leaks the future
-   into the past and inflates every metric.
-2. **Every feature is lagged at source.** All rolling features are `.shift(1)` *then*
-   `.rolling(...)`, grouped by `player_id`. Shifting after rolling would include week W's
-   own value in its own predictor. `tests/test_features_lag.py` pins this with a case where
-   the two orderings give different answers.
-3. **Ratios are built from already-lagged columns**, never from raw stats lagged afterwards.
-4. **Rolling windows follow a player's game sequence, not week number**, so bye weeks and
-   missed games do not silently shift a window.
-5. **Regular season only**, filtered *before* any rolling — filtering only the prediction
-   targets would still leave playoff games inside the windows (§6.3).
-6. **The baseline is scored on identical rows** to every model, in the same fold, from the
-   same pool. Comparing against a baseline measured elsewhere is how projects accidentally
-   beat nothing.
+Issues observed
+- Less accurate than the baseline for low-volume players, who make up three quarters of
+  the data. A fallback was added that used the baseline for those players.
 
-**Projecting unplayed weeks** needs care, and `upcoming.py` handles it with a placeholder
-trick: append rows for the target week carrying only identity and schedule fields, with NaN
-for every statistic, then run the *existing* lagged feature builders. Because they all shift
-before rolling, the placeholder row's features derive strictly from earlier games, and its
-own NaNs never feed itself. No rolling logic is duplicated, so the live path cannot drift
-from the training path.
+**v3 Two positions**
 
-## 5. Results
+Intent: Extend the system to running backs.
 
-All figures: top-40-by-projection pool, 2021–2025, 180 walk-forward folds, 21,600 scored
-rows. Lower MAE is better.
+Key changes
+- One model per position. The positions are never combined, because a carry means
+  something different for a receiver than for a running back.
+- Features added for running backs: touches, yards per carry, rushing first downs.
 
-| Comparator | WR MAE | RB MAE | WR bias | WR R² |
-|---|---|---|---|---|
-| Naive baseline (last-4 average) | 7.047 | 6.464 | +1.14 | −0.06 |
-| Expected points (last-4 average) | 6.775 | 6.251 | +0.50 | 0.01 |
-| Retired hybrid | 6.503 | 6.115 | −0.53 | 0.06 |
-| XGBoost alone | 6.514 | 6.073 | +0.01 | 0.07 |
-| Ridge alone | 6.485 | 6.052 | −0.27 | 0.08 |
-| Quantile median (q50) | 6.499 | 6.020 | −2.26 | 0.00 |
-| **Shipped: XGBoost + ridge** | **6.474** | **6.029** | **−0.13** | **0.08** |
-| *3-way incl. q50 (rejected, §7)* | *6.427* | *5.973* | *−0.84* | *0.07* |
-| **Published best-in-class** | **4.84–4.94** | **5.06–5.20** | — | — |
+Issues observed
+- The opponent-strength feature added up points allowed to all active positions at once.
+  Adding running backs would have silently changed the receiver numbers. Fixed by
+  calculating that feature separately for each position.
 
-**Per-season stability** (shipped model, MAE):
+**v4 Measurement**
+
+Intent: Find out whether the accuracy figures meant anything.
+
+Key changes
+- Evaluation tools that score any method on any group of players.
+- Switched to the group professional studies use: the top 40 players per position per
+  week, ranked by projection.
+- Extended testing from one season to five.
+
+What worked
+- Produced the first accuracy figure comparable to an outside reference.
+
+Issues observed
+- Playoff games were inside the training data and inside the rolling averages. Removing
+  them made the results slightly worse, which was correct.
+
+**v5 Opportunity features**
+
+Intent: Add the information the model was missing.
+
+Key changes
+- Expected fantasy points from nflverse, which measures what a player's opportunities were
+  worth rather than what he scored.
+- Snap share, target share, and share of the team's passing yards.
+
+What worked
+- The largest single accuracy gain of the project. Expected points became the strongest
+  feature in the model.
+- The model now beat the baseline for low-volume players as well, so the v2 fallback was
+  removed.
+
+Issues observed
+- Injury features were built and measured, and made no difference. See section 3.4.
+
+**v6 Ensemble and ranges**
+
+Intent: Improve accuracy and report uncertainty.
+
+Key changes
+- Final prediction is the average of XGBoost and ridge regression.
+- A second model predicts a range rather than a single number.
+
+What worked
+- Small accuracy gain from combining two models.
+- Ranges are accurate to within two percentage points of their target.
+
+Issues observed
+- The remaining gap to professional services is mostly missing data, not modelling.
+
+## 3.0 Thought Process Through Significant Changes
+
+### 3.1 Choosing which players to count
+
+Accuracy depends on which players are included. A team roster carries around 140 receivers
+per week across the league, but most are bench players who score close to zero. They are
+easy to predict, so including them makes any model look accurate.
+
+The project reported 4.49 MAE for several weeks. Published accuracy studies score only the
+top 40 receivers per week. Measured that way, the same model scored 6.47. The model had not
+changed. The measurement had been wrong.
+
+Every figure in this report uses the top 40 per position per week.
+
+### 3.2 Expected points
+
+Actual fantasy points are noisy because touchdowns are close to random in the short term. A
+receiver who gets 11 targets and 140 air yards had a good week of opportunity even if he
+scored 4 points.
+
+nflverse publishes an expected points figure that measures the value of a player's
+opportunities. Adding a rolling average of it produced the largest accuracy gain in the
+project, and it became the single strongest feature. This matches the reasoning above:
+opportunity is more stable week to week than scoring.
+
+### 3.3 Choosing the final model
+
+Three candidates were tested. A combination of XGBoost, ridge regression and a third model
+that predicts the median scored the best MAE, at 6.43 for receivers against 6.47 for the
+chosen combination.
+
+The best-scoring option was rejected. A median prediction sits below the average when
+scores are skewed, and fantasy scores are more skewed for better players. Checking one
+real player showed the effect: the rejected model projected Puka Nacua at 18.4 points
+where the chosen model said 22.7. The average bias was 0.84 points, but for a top receiver
+it was around 4.4 points.
+
+A projection service that undersells its best players is not useful, so the second-best
+MAE was shipped.
+
+### 3.4 Injury features, removed
+
+Injury status seemed likely to help. The model had no idea whether a player was hurt.
+
+The hypothesis was wrong for a specific reason. A player listed as Out does not appear in
+the statistics at all. All 996 players listed Out in 2023 had no row of data. The model
+never predicts them, so the error the feature was meant to catch cannot happen.
+
+Two versions were built and measured. Neither changed accuracy by a meaningful amount.
+Both were removed.
+
+| | Before | Teammate counts | Weighted by opportunity |
+|---|---|---|---|
+| Wide receiver | 6.514 | 6.519 | 6.511 |
+| Running back | 6.073 | 6.109 | 6.088 |
+
+Table 2: Injury feature results, showing no useful change.
+
+### 3.5 Prediction ranges
+
+A single number gives no sense of confidence. The first attempt added and subtracted the
+model's average error, which gave every player in a group the same range.
+
+The second attempt trains a model to predict the 10th and 90th percentile directly, so the
+range is calculated per player and widens for unpredictable ones. Measured coverage was 78%
+for receivers and 79% for running backs against a target of 80%.
+
+The first method was also too narrow. It produced ranges around 13.8 points wide where 19
+points are needed for 80% coverage, so it understated uncertainty.
+
+## 4.0 Results
+
+All figures use the top 40 players per position per week, across the 2021 to 2025 seasons.
+This covers 180 weeks of testing and 21,600 player-weeks. Lower MAE is better.
+
+| Method | WR MAE | RB MAE |
+|---|---|---|
+| Average of last 4 games | 7.047 | 6.464 |
+| Expected points average | 6.775 | 6.251 |
+| First model, usage features only | 6.578 | 6.168 |
+| Plus opportunity features | 6.514 | 6.073 |
+| Final: XGBoost plus ridge | 6.474 | 6.029 |
+| Professional services | 4.84 - 4.94 | 5.06 - 5.20 |
+
+Table 3: Accuracy by version, all measured the same way.
+
+Accuracy by season, for the final model:
 
 | | 2021 | 2022 | 2023 | 2024 | 2025 |
 |---|---|---|---|---|---|
-| WR | 6.412 | 6.353 | 6.759 | 6.497 | 6.351 |
-| RB | 6.332 | 6.148 | 5.758 | 5.823 | 6.085 |
+| Wide receiver | 6.41 | 6.35 | 6.76 | 6.50 | 6.35 |
+| Running back | 6.33 | 6.15 | 5.76 | 5.82 | 6.09 |
 
-The spread is narrow enough that the gap to published figures is a real gap, not noise.
+Table 4: Season by season results. The spread is small, so the gap to the professional
+services is consistent rather than a result of one bad year.
 
-**Honest summary:** 8% (WR) and 7% (RB) better than a naive baseline; 34% (WR) and 19% (RB)
-*worse* than commercial projections. Rank correlation within week is 0.27 (WR) and 0.39 (RB).
+One caution. A single season can point the wrong way. Adding the opportunity features made
+receivers worse across 2023 alone, from 6.760 to 6.806, and better across all five seasons,
+from 6.578 to 6.514. Eighteen weeks is too small a sample to judge a change on.
 
-A caution the data itself taught: **single-season and multi-season results can disagree in
-direction.** Adding the opportunity feature family made WR *worse* on 2023 alone (6.760 →
-6.806) and *better* across five seasons (6.578 → 6.514). One season of 18 folds is too noisy
-to judge a change on — a lesson that would have saved two wrong conclusions had it been
-learned earlier.
+## 5.0 How the Project Was Built
 
-## 6. Negative results
+The code was written with Claude Code. The work that mattered was setting up checks that
+catch mistakes, because a model that is quietly wrong still produces confident numbers.
 
-These are recorded because they were the most instructive part of the project, and because
-a log of only successes is evidence of poor record-keeping rather than good luck.
+**An automatic check on every change.** A script runs after any edit to the model code. It
+re-runs the accuracy measurement, compares against six fixed numbers, and stops work if any
+of them move. It treats an unexplained improvement as a problem, not a success, because an
+improvement usually means the model has been given information it should not have.
 
-### 6.1 The headline number was a measurement artifact
+**Tests for the rules that keep the model honest.** 62 tests, running in about 11 seconds.
+The important ones check that a prediction for a given week never uses data from that week,
+that a player's rolling average never includes another player's games, and that playoff
+games stay out of the regular season data.
 
-The project reported **4.49 MAE** for months. Building the evaluation harness revealed that
-published studies score only the **top 40 WR by projection each week**, while this project
-was scoring every WR with a prior game — about 140 per week. The extra 100 are deep-bench
-players who score near zero and are trivially predictable, and they dragged MAE down by
-roughly 30%.
+These tests found a real fault. A check that compares the evaluation tools against the
+training code had stopped working three versions earlier, and had been reporting a blank
+result instead of an error. The automatic check above never caught it because it runs a
+different part of the code.
 
-The same model, measured on the comparable pool, scores **6.47**. Nothing about the model
-changed; the measurement was wrong. This is the finding the whole project rests on, and it
-made the headline number worse.
+**Recording what did not work.** The injury features in section 3.4 were measured and
+removed rather than quietly kept. Section 3.3 describes rejecting the model that scored
+best.
 
-### 6.2 Injury and availability features: no effect, reverted
+## 6.0 Limitations
 
-**Hypothesis:** the model has no idea whether a player is injured, so injury report status,
-practice participation, teammate absence and time-since-last-game should help — especially
-on the top-40 pool, where a player who is ruled out would be projected highly and score 0.
-
-**Why the premise was false:** a player listed "Out" **has no weekly stats row at all** —
-verified at 996 of 996 "Out" player-weeks in 2023. Inactive players are absent from the
-data entirely, so they are never predicted, and the error the feature targeted cannot occur.
-
-**Measured** (top-40, 2021–2025):
-
-| | Before | Teammate counts | Vacated-opportunity weighting |
-|---|---|---|---|
-| WR | 6.514 | 6.519 | 6.511 |
-| RB | 6.073 | 6.109 | 6.088 |
-
-Both variants null. The second weighted teammate absence by the absent player's recent
-expected points, since a WR1 sitting vacates far more opportunity than a WR5 — better than
-a raw count, still null. **Reverted.**
-
-The most valuable consequence of reverting: the project's leakage rule did **not** have to
-be relaxed. The plan had called for amending "strictly before week W" to "knowable at
-kickoff" so pre-kickoff injury reports would be legal. Since the features bought nothing,
-the strictest invariant stayed intact.
-
-### 6.3 Playoff contamination
-
-`season_type` was unused, and the week filter applied only to the validation season — so
-2016–2022 playoff games sat inside training data *and* inside rolling windows. Playoff games
-have a different player pool (14 teams, rested starters). Fixing it made results slightly
-**worse** (WR 6.539 → 6.578), which is correct: the earlier figure was partly borrowed from
-data that should not have been in scope.
-
-### 6.4 The hybrid, retired
-
-For several phases the shipped prediction was a "hybrid" that used the model for
-high-volume players and fell back to the baseline for low-volume ones, because the model
-genuinely lost to the baseline on the latter. After the expected-points features landed,
-that stopped being true:
-
-| Low-volume segment | Before | After |
-|---|---|---|
-| WR | −1.7% (worse than baseline) | **+4.0% better** |
-| RB | −3.5% (worse than baseline) | **+0.9% better** |
-
-The hybrid's entire premise had dissolved, so it was retired. It survives as a comparator
-so that earlier phases remain reproducible.
-
-## 7. Shipping the second-best MAE on purpose
-
-A three-way ensemble adding the quantile median won on the declared metric — WR 6.427 vs
-6.474, RB 5.973 vs 6.029 — and was **rejected**.
-
-A median sits below the mean on a right-skewed distribution, and fantasy scoring skew grows
-with volume. So the bias concentrates on exactly the players that matter. Checked on a real
-player rather than trusting the aggregate:
-
-| Puka Nacua, 2026 week 2 | |
-|---|---|
-| XGBoost | 22.7 |
-| 3-way ensemble (incl. q50) | **18.4** |
-
-Roughly **−4.4 points on an elite WR**, hidden inside an average bias of −0.84. A projection
-system that under-sells the best players by four points reads as broken next to any
-commercial source, and would have bought a 0.7% MAE improvement for it.
-
-The transferable lesson: **an aggregate metric can conceal a large, structured error
-concentrated where it matters most.** Check on individual rows before trusting an average.
-
-## 8. Calibration
-
-The prediction interval is the model's own 10th–90th percentile, learned per player, so it
-widens for volatile players rather than applying one flat band.
-
-| Pool | WR coverage | RB coverage | Target |
-|---|---|---|---|
-| Top-40 | 0.778 | 0.785 | 0.80 |
-| All rows | 0.825 | 0.821 | 0.80 |
-
-Honest within a couple of points in both directions. It also replaced a band that was
-*lying*: the previous "± historical MAE" interval was ~13.8 points wide where ~19 is needed
-for 80% coverage, so it was understating uncertainty rather than merely approximating it.
-
-## 9. Limitations
-
-- **Two positions only.** QB and TE are straightforward extensions (the per-position
-  architecture already exists) but need their own thresholds and feature lists. Kickers and
-  team defenses need an entirely new target — `fantasy_points_ppr` is 0.00 for all 5,305
-  kicker rows.
-- **The test season has never been touched.** 2024 is reserved in config and has not been
-  used as a final holdout; all reported figures are validation-season walk-forward.
-- **Working-directory coupling.** Scripts in `src/` resolve cache paths relative to the
-  current directory, so running them from elsewhere silently reads a different cache. The
-  GUI defends itself; the scripts do not. Documented rather than fixed, because the fix
-  touches every file under the regression hook for no reviewer-visible gain.
-- **Multi-week projections are a form outlook, not a forecast.** Beyond the next game, lagged
-  features cannot advance (no games have been played) and ~88% of later fixtures have no
-  betting line posted, so those weeks vary only by opponent.
-- **The remaining gap is mostly a data gap.** The two clearest missing inputs — player prop
-  markets and true availability signal — are commercial data problems, not modelling ones.
-
-## 10. What I would do differently
-
-1. **Declare the player pool in week one.** The single largest correction in the project was
-   a measurement definition, not a model change. It should have been the first decision.
-2. **Write the evaluation harness before the third feature family.** Every feature added
-   before it was judged against a number that turned out to be incomparable.
-3. **Evaluate on multiple seasons from the start.** Two conclusions were nearly drawn from
-   single-season movements that reversed across five.
-4. **Check aggregate metrics on individual rows earlier.** The −4.4 elite-player bias was
-   invisible in every summary table that had been produced up to that point.
+- Covers wide receivers and running backs. Quarterbacks and tight ends would work the same
+  way. Kickers and team defences need a different scoring calculation.
+- The 2024 season is reserved as a final test and has not been used.
+- Projections further than one week ahead reuse the current week's inputs, because the
+  games in between have not been played. They show current form rather than a forecast.
+- Scripts read data from a folder relative to where they are run, so they must be run from
+  the project folder.
+- The gap to professional services is mostly data. They use betting markets for individual
+  players and injury reporting that is not publicly available.
 
 ---
 
-## Appendix: reproducing the numbers
+## Appendix A: Running the Project
 
 ```bash
-pytest                                   # fast invariant suite (~11s)
-pytest -m slow                           # fidelity gate against real data
-python src/evaluate.py                   # fidelity check + top-40 table, 2023
-python src/evaluate.py 2021 2022 2023 2024 2025   # the headline multi-season table
-python scripts/make_benchmark_chart.py   # regenerate the comparison chart
+python -m venv .venv && .venv/Scripts/activate
+pip install -r requirements.txt
+
+python src/data_load.py                            # download data, about 25 MB
+python src/evaluate.py                             # accuracy tables for one season
+python src/evaluate.py 2021 2022 2023 2024 2025    # the figures in Table 3
+python src/upcoming.py                             # next week's projections
+streamlit run app.py                               # the app
+
+pytest                                             # 62 tests, about 11 seconds
+pytest -m slow                                     # accuracy check against real data
 ```
 
-Run everything from the project root. The first run downloads roughly 25 MB from nflverse;
-a full multi-season evaluation takes several minutes because it refits per fold by design.
+Run everything from the project folder. Training takes a few minutes because the model is
+refit once for each week of the season.
+
+## Appendix B: File Layout
+
+| Folder | Contents |
+|---|---|
+| `src/features_*.py` | Builds the inputs: usage, opportunity, opponent strength, betting lines |
+| `src/validation.py` | Splits the data so a prediction only ever sees earlier games |
+| `src/train.py` | Fits the models |
+| `src/evaluate.py` | Measures accuracy and writes the results file |
+| `src/comparators.py` | The methods being compared, including the final model |
+| `gui/` and `app.py` | The Streamlit app |
+| `tests/` | The 62 tests |
+| `.claude/hooks/` | The automatic check described in section 5.0 |
+
+## Appendix C: Figures
+
+![Accuracy comparison](docs/images/benchmark-gap.png)
+
+Figure 1: Accuracy against professional projections, measured on the same group of players.
+
+![One player's season](docs/images/player-season.png)
+
+Figure 2: One receiver's 2023 season. The line is the projection, the shaded band is the
+predicted range, and the dots are what he actually scored.

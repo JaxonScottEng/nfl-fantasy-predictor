@@ -1,19 +1,13 @@
 # evaluate.py
 """
-The evaluation harness: score any set of comparators, on any player pool, over
-any set of seasons, with every comparator judged on identical rows.
+Scores any set of methods on any group of players, over any set of seasons, with
+every method judged on identical rows.
 
-Why this exists: the project's headline MAE was measured over every WR with a
-prior game (~140 per week), while every published accuracy study measures the top
-40 by projection. Those two numbers are not comparable, and the unfiltered one
-looks better than it is. See pools.py.
+Returns row-level predictions rather than finished metrics, because MAE over all
+folds is not the average of per-fold MAEs, and the weekly consistency measure needs
+the per-week breakdown. summarize() turns those rows into metrics.
 
-Returns ROW-LEVEL predictions rather than pre-aggregated metrics, because pooled
-MAE over all folds is not the mean of per-fold MAEs (folds differ in size) and
-week-to-week consistency metrics need the per-week breakdown. summarize() turns
-those rows into metrics.
-
-Run from the project root -- the data cache path is relative.
+Run from the project folder. Data paths are relative.
 """
 import os
 
@@ -146,19 +140,17 @@ def metric_table(row_df, metric_ids=None, pool_only=True, **metric_kwargs):
                                columns="metric", values="value", sort=False)
 
 
-# The Stage 0 acceptance gate: with pool="all" over 2023 the harness must
-# reproduce train.py's locked-in numbers exactly, or it is not measuring the
-# same thing and no later comparison can be trusted.
+# The harness must reproduce train.py's numbers exactly. If it does not, it is
+# measuring something else and no comparison from it can be trusted.
 FIDELITY_TARGETS = {
     ("WR", "baseline_last4"): 4.685, ("WR", "xgb_model"): 4.384, ("WR", "hybrid"): 4.506,
     ("RB", "baseline_last4"): 4.551, ("RB", "xgb_model"): 4.349, ("RB", "hybrid"): 4.375,
 }
 
 
-# Named explicitly rather than inherited from DEFAULT_COMPARATOR_IDS: this check
-# verifies the harness against train.py's three outputs, which include the hybrid.
-# When the default set changed to ship the ensemble, the hybrid dropped out of the
-# run and this check reported None for numbers train.py still produces.
+# Named explicitly, not inherited from DEFAULT_COMPARATOR_IDS. When that default
+# changed to ship the ensemble, the hybrid dropped out and this check silently
+# reported nothing for numbers train.py still produces.
 FIDELITY_COMPARATORS = ["baseline_last4", "xgb_model", "hybrid"]
 
 

@@ -1,25 +1,17 @@
 # train.py
 """
-Walk-forward training for the per-position point models.
+Walk-forward training, one model per position.
 
-This module defines the model spec -- FEATURE_COLS_BY_POSITION and XGB_PARAMS --
-which comparators.py imports so that evaluation can never fit something different
-from what training fits.
+Defines the model spec (FEATURE_COLS_BY_POSITION, XGB_PARAMS) that comparators.py
+imports, so evaluation always fits the same model as training.
 
-One SEPARATE model per position in config.ACTIVE_POSITIONS. Positions are never
-pooled: usage stats mean different things by position (a WR's carries vs an RB's),
-and pooling would let one position's sample size and scoring distribution distort
-the other's fit. Each position gets its own feature list and its own folds.
+Positions are never pooled. A carry means something different for a receiver than
+for a running back.
 
-WHAT THIS IS NOT: the shipped projection. That is an ensemble defined in
-comparators.SHIPPED_COMPARATOR_ID, and the accuracy figures in CLAUDE.md come from
-evaluate.py on a declared player pool. Running this module prints ALL-ROWS numbers,
-which exist only as the fidelity anchor -- evaluate.check_fidelity() asserts that the
-harness reproduces them exactly. They are not an accuracy claim; see REPORT.md §6.1
-for why an unfiltered pool flatters MAE by roughly 30%.
-
-The `hybrid` still computed here is retired and no longer shipped. It is kept so the
-Phase 5-10 comparisons in LOG.md remain reproducible.
+This script prints all-rows numbers. They exist only so evaluate.check_fidelity()
+can confirm the evaluation tools reproduce training exactly, and are not an
+accuracy claim. See REPORT.md section 3.1. The hybrid is retired but still
+computed so earlier comparisons stay reproducible.
 """
 import numpy as np
 import pandas as pd
@@ -34,7 +26,7 @@ from validation import walk_forward_folds
 XGB_PARAMS = dict(n_estimators=200, max_depth=4, learning_rate=0.05, random_state=42)
 
 # baseline_pred cutoff; matches the error-analysis split.
-# WR's 12.0 comes from the Phase 5 WR error analysis. RB inherits that same
+# WR's 12.0 came from the WR error analysis. RB inherits that same
 # cutoff rather than a separately tuned one -- picking RB's threshold by
 # scanning for its best result would be exactly the post-hoc cherry-picking
 # the WR analysis avoided. Revisit only off a dedicated RB error analysis.

@@ -1,7 +1,7 @@
 # features_player.py
 """
 Player usage/efficiency features — all rolling, all lagged.
-Lag is applied the same way as the Phase 1 baseline: shift(1) before
+Lag is applied the same way as the baseline: shift(1) before
 rolling, grouped by player_id, so the current week is never included.
 """
 import numpy as np
@@ -9,7 +9,7 @@ import config
 from data_load import load_weekly, filter_regular_season
 
 # Raw stat columns we'll build rolling features from.
-# Verified against the real column list from Phase 0 — adjust here if
+# Verified against the real column list. Adjust here if
 # nflreadpy's schema changes.
 USAGE_COLS = ["targets", "receptions", "receiving_air_yards", "carries"]
 PROD_COLS = ["receiving_yards", "rushing_yards", "receiving_tds", "rushing_tds",

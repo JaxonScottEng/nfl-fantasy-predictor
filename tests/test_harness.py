@@ -1,19 +1,14 @@
 """
-End-to-end exercise of the evaluation harness on synthetic data.
-
-run_evaluation() accepts an injected feature_table, so the whole walk-forward loop
--- folds, real model fits, pool selection, metric aggregation -- runs in seconds
-instead of the minutes a real season takes.
-
-The property that matters most here is the project's own hard rule: every
-comparator must be scored on the IDENTICAL set of rows. Comparing a model against
-a baseline measured on a different pool is the exact mistake this harness exists
-to prevent.
+The evaluation harness and the join guard it depends on.
 """
-import pytest
-
+from build_features import _merge_player_week
 from comparators import DEFAULT_COMPARATOR_IDS
 from evaluate import metric_table, run_evaluation, summarize
+import pandas as pd
+import pytest
+
+
+# --- from test_harness_smoke ---
 
 SEASON = 2021
 POOL_SIZE = 5
@@ -96,3 +91,56 @@ def test_metric_table_pivots_to_comparators_by_metric(evaluated):
     table = metric_table(evaluated, metric_ids=["mae", "rmse"])
     assert "mae" in table.columns
     assert len(table) == len(DEFAULT_COMPARATOR_IDS)
+
+
+# --- from test_merge_guard ---
+
+@pytest.fixture
+def left():
+    return pd.DataFrame({
+        "player_id": ["a", "b", "c"],
+        "season": [2021, 2021, 2021],
+        "week": [1, 1, 1],
+        "value": [1.0, 2.0, 3.0],
+    })
+
+
+def test_clean_join_preserves_rows_and_order(left):
+    right = pd.DataFrame({
+        "player_id": ["a", "b", "c"],
+        "season": [2021, 2021, 2021],
+        "week": [1, 1, 1],
+        "extra": [10.0, 20.0, 30.0],
+    })
+
+    out = _merge_player_week(left, right, "extra table")
+
+    assert len(out) == len(left)
+    assert list(out["player_id"]) == ["a", "b", "c"]
+    assert list(out["extra"]) == [10.0, 20.0, 30.0]
+
+
+def test_duplicate_keys_raise_and_name_the_join(left):
+    right = pd.DataFrame({
+        "player_id": ["a", "a"],           # duplicated key
+        "season": [2021, 2021],
+        "week": [1, 1],
+        "extra": [10.0, 11.0],
+    })
+
+    with pytest.raises(ValueError, match="snap share"):
+        _merge_player_week(left, right, "snap share")
+
+
+def test_missing_keys_become_nan_rather_than_dropping_rows(left):
+    right = pd.DataFrame({
+        "player_id": ["a"],
+        "season": [2021],
+        "week": [1],
+        "extra": [10.0],
+    })
+
+    out = _merge_player_week(left, right, "partial table")
+
+    assert len(out) == len(left)
+    assert out["extra"].isna().sum() == 2

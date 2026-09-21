@@ -1,15 +1,12 @@
 #!/usr/bin/env python
 """
-PostToolUse hook: after an edit to a .py file under src/, re-run the
-evaluation harness and confirm each position's baseline/model/hybrid MAE
-still matches the locked-in numbers in CLAUDE.md's Verification section.
+After an edit to a .py file under src/, re-runs the evaluation and confirms each
+position's baseline, model and ensemble MAE still match the numbers in CLAUDE.md.
 
-Checks the OFFICIAL metric: top-40-by-projection pool, single season, which
-is the only pool comparable to published accuracy studies. One season only --
-this fires on every src/*.py edit, so the full multi-season run is too slow.
+Uses the top-40 pool, one season. That is the only group comparable to published
+accuracy studies, and one season keeps the check fast enough to run on every edit.
 
-Warns loudly (stderr + exit code 2) on any mismatch or failure to run.
-Never modifies files -- read-only check.
+Exits 2 with a banner on any mismatch or failure. Never modifies files.
 """
 import json
 import os
@@ -27,7 +24,7 @@ EXPECTED_MAE = {
     "RB": {"baseline_last4": 6.129, "xgb_model": 5.746, "ensemble_xgb_ridge": 5.758},
 }
 
-EXCLUDED_BASENAMES = {"LOG.md", "CLAUDE.md", "README.md"}
+EXCLUDED_BASENAMES = {"CLAUDE.md", "README.md", "REPORT.md"}
 
 EVAL_ARGS = ["src/evaluate.py", "--regression"]
 
