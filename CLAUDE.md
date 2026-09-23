@@ -51,7 +51,9 @@ directory silently reads and writes a different cache.
 
 Accuracy is measured on the top 40 WR/RB by projection per week, which is the group
 published accuracy studies use. Scoring every rostered player instead makes MAE look about
-30% better than it is. See `src/pools.py`.
+30% better than it is. This was found partway through the project, when the reported figure
+was 4.49 and the comparable one turned out to be 6.47. See `src/pools.py` and REPORT.md
+section 3.1. Do not quote an accuracy number without naming the pool it came from.
 
 Locked-in, 2023, top-40 pool. The hook checks these:
 

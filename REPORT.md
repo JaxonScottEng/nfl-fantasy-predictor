@@ -37,7 +37,7 @@ Appendix A lists the commands to run the app and reproduce every figure in this 
 | v1 Baseline | Average of a player's last 4 games | No model, only a reference point |
 | v2 First model | XGBoost, rolling usage and efficiency features, betting lines | Beat the baseline only for high-volume players |
 | v3 Two positions | Running backs added, separate model per position | Shared defence feature mixed the positions together |
-| v4 Measurement | Evaluation tools, standard player pool, multi-season testing | Revealed that all earlier accuracy figures were overstated |
+| v4 Measurement | Evaluation tools, standard player pool, multi-season testing | I found that counting every player had overstated accuracy by about 30% |
 | v5 Opportunity features | Expected points, snap share, target share | Injury features added and removed, no effect |
 | v6 Ensemble and ranges | XGBoost plus ridge regression, prediction ranges | Payload of accuracy gain is small, gap to professionals remains |
 
@@ -98,6 +98,8 @@ Key changes
 
 What worked
 - Produced the first accuracy figure comparable to an outside reference.
+- I found that counting every player on a roster, rather than the top 40, had been
+  lowering the reported error by about 30%. See section 3.1.
 
 Issues observed
 - Playoff games were inside the training data and inside the rolling averages. Removing
