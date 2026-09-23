@@ -253,7 +253,7 @@ re-runs the accuracy measurement, compares against six fixed numbers, and stops 
 of them move. It treats an unexplained improvement as a problem, not a success, because an
 improvement usually means the model has been given information it should not have.
 
-**Tests for the rules that keep the model honest.** 61 tests, running in about 11 seconds.
+**Tests for the rules that keep the model honest.** 62 tests, running in about 11 seconds.
 The important ones check that a prediction for a given week never uses data from that week,
 that a player's rolling average never includes another player's games, and that playoff
 games stay out of the regular season data.
@@ -304,7 +304,7 @@ python src/evaluate.py                             # accuracy tables for one sea
 python src/evaluate.py 2021 2022 2023 2024 2025    # the figures in Table 3
 python src/upcoming.py                             # next week's projections
 
-pytest                                             # 61 tests, about 11 seconds
+pytest                                             # 62 tests, about 11 seconds
 pytest -m slow                                     # accuracy check against real data
 ```
 
@@ -321,7 +321,7 @@ refit once for each week of the season.
 | `src/evaluate.py` | Measures accuracy and writes the results file |
 | `src/comparators.py` | The methods being compared, including the final model |
 | `gui/` and `app.py` | The Streamlit app |
-| `tests/` | The 61 tests |
+| `tests/` | The 62 tests |
 | `.claude/hooks/` | The automatic check described in section 5.0 |
 
 ## Appendix C: Figures

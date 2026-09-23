@@ -39,7 +39,7 @@ python src/evaluate.py [seasons...]            fidelity check and accuracy table
 python src/evaluate.py --regression            machine-readable numbers (hook uses this)
 python src/upcoming.py                         next week's projections
 streamlit run app.py                           the app
-pytest                                         61 tests, about 11 seconds
+pytest                                         62 tests, about 11 seconds
 pytest -m slow                                 accuracy check against real data
 python scripts/make_figures.py                 regenerate the README figures
 ```
